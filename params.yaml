@@ -1,0 +1,36 @@
+modeling:
+  n_trials: 5
+  model_family: random_forest #xgboost, random_forest
+  objective_function: Logloss # Logloss, CrossEntropy
+  loss_function: F1 # Precision, F1, Accuracy
+
+data:
+  raw_data_path: data/raw/Weather-related disease prediction.csv
+  interim_data_path: data/interim/weather_disease.parquet
+  x_train_path: data/processed/x_train.csv
+  y_train_path: data/processed/y_train.csv
+  x_test_path: data/processed/x_test.csv
+  y_test_path: data/processed/y_test.csv
+  output_dir: data/processed
+
+  target_col: prognosis
+
+directories:
+  model_dir: models
+  processed_data_dir: data/processed
+  reports_dir: reports
+
+eda:
+  output_prefix: weather-health-eda
+
+artifacts:
+  model_path: models/weather_disease_model.pkl
+  scaler_path: data/processed/minmax_scaler.pkl
+  label_encoder_path: data/processed/label_encoder.pkl
+
+reports:
+  model_metrics_path: reports/model_metrics.csv
+  predictions_path: reports/predictions.csv
+  feature_importance_path: reports/feature_importance.png
+  confusion_matrix_path: reports/confusion_matrix.png
+  classification_report_path: reports/classification_report.txt

@@ -172,3 +172,13 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+data/processed/label_encoder.pkl
+data/processed/minmax_scaler.pkl
+data/processed/x_test.csv
+data/processed/x_train.csv
+data/processed/y_test.csv
+data/processed/y_train.csv
+
+logs
