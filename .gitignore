@@ -173,6 +173,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# MacOS
+.DS_Store
+
 
 # data/processed/label_encoder.pkl
 # data/processed/minmax_scaler.pkl
