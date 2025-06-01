@@ -1,11 +1,17 @@
 import numpy as np
+import pandas as pd
+import mlflow
+from mlflow.models.signature import infer_signature
 from hyperopt import fmin, hp, tpe, Trials, STATUS_OK
 from hyperopt.pyll import scope
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
+from sklearn.ensemble import (RandomForestClassifier,
+                              GradientBoostingClassifier,
+                              HistGradientBoostingClassifier)
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score
 from lightgbm import LGBMClassifier
+from prefect import flow, task
 
 from typing import Literal
 from numpy.typing import ArrayLike
@@ -14,8 +20,8 @@ from src import logger
 
 seed = 1024
 
-
-def classification_objective(x_train: ArrayLike, y_train: ArrayLike,
+@task(name="classification_objective", retries=3, retry_delay_seconds=10, log_prints=True)
+def classification_objective(x_train: pd.DataFrame, y_train: ArrayLike,
                              model_family: str,
                              loss_function: Literal['Accuracy', 'F1', 'Precision'],
                              params: dict) -> dict:
@@ -38,26 +44,40 @@ def classification_objective(x_train: ArrayLike, y_train: ArrayLike,
     else:
         raise ValueError(f"Unsupported model_family '{model_family}'")
 
-    x_train = np.asarray(x_train)
-    y_train = np.asarray(y_train)
-    model.fit(x_train, y_train)
-    y_pred = model.predict(x_val)
+    with mlflow.start_run(nested=True): # nested=True
+        mlflow.log_params(params)
 
-    if loss_function == 'F1':
+        model.fit(x_train, y_train)
+        y_pred = model.predict(x_val)
+
+        signature = infer_signature(x_val, y_pred)
+        input_example = x_val.iloc[:1]
+
         y_pred = np.asarray(y_pred).ravel()
-        loss = 1 - f1_score(y_val, y_pred, average='weighted')
-    elif loss_function == 'Accuracy':
-        y_pred = np.asarray(y_pred).ravel()
-        loss = 1 - accuracy_score(y_val, y_pred)
-    elif loss_function == 'Precision':
-        y_pred = np.asarray(y_pred).ravel()
-        loss = 1 - precision_score(y_val, y_pred, average='weighted')
-    else:
-        raise ValueError(f"Unsupported loss_function '{loss_function}'")
+        if loss_function == 'F1':
+            loss = 1 - f1_score(y_val, y_pred, average='weighted')
+        elif loss_function == 'Accuracy':
+            loss = 1 - accuracy_score(y_val, y_pred)
+        elif loss_function == 'Precision':
+            loss = 1 - precision_score(y_val, y_pred, average='weighted')
+        else:
+            raise ValueError(f"Unsupported loss_function '{loss_function}'")
+
+        # Log metrics
+        mlflow.log_metric("loss", float(loss))
+        mlflow.log_metric("accuracy", float(accuracy_score(y_val, y_pred)))
+        mlflow.log_metric("f1", float(f1_score(y_val, y_pred, average='weighted')))
+        mlflow.log_metric("precision", float(precision_score(y_val, y_pred, average='weighted')))
+
+#        # Log the model
+        mlflow.sklearn.log_model(model,
+                                 artifact_path="model",
+                                 signature=signature,
+                                 input_example=input_example) # type: ignore
 
     return {'loss': loss, 'status': STATUS_OK}
 
-
+@task(name="hyperparameter_tuning", retries=3, retry_delay_seconds=10, log_prints=True)
 def classification_optimization(x_train: ArrayLike, y_train: ArrayLike,
                                 model_family: str,
                                 loss_function: Literal['Accuracy', 'F1', 'Precision'],
@@ -84,8 +104,8 @@ def classification_optimization(x_train: ArrayLike, y_train: ArrayLike,
     elif model_family == "logistic_regression":
         search_space = {
             'C': hp.loguniform('C', np.log(0.001), np.log(10)),
-            'solver': hp.choice('solver', ['liblinear', 'saga']),
-            'penalty': hp.choice('penalty', ['l2', 'l1']),
+            'solver': hp.choice('solver', ['liblinear', 'saga',]),
+            'penalty': hp.choice('penalty', ['l2', 'l1',,]),
             'max_iter': 200
         }
 
@@ -116,19 +136,26 @@ def classification_optimization(x_train: ArrayLike, y_train: ArrayLike,
 
     logger.info(f"Starting optimization for {model_family}...")
 
-    best_params = fmin(
-        fn=lambda params: classification_objective(
-            x_train, y_train, model_family, loss_function, params),
-        space=search_space,
-        algo=tpe.suggest,
-        max_evals=num_trials,
-        trials=trials,
-        rstate=rstate
-    )
+    # End any previous active run
+    if mlflow.active_run() is not None:
+        mlflow.end_run()
 
-    # Post-process choices
+    mlflow.set_experiment(f"{model_family}_experiment")
+
+    with mlflow.start_run(run_name=f"{model_family}_optimization",): # nested=True
+        best_params = fmin(
+            fn=lambda params: classification_objective(
+                x_train, y_train, model_family, loss_function, params),
+            space=search_space,
+            algo=tpe.suggest,
+            max_evals=num_trials,
+            trials=trials,
+            rstate=rstate
+        )
+
+    # Post-process categorical choices
     if model_family == "logistic_regression" and best_params is not None:
-        solver_list = ['liblinear', 'saga']
+        solver_list = ['liblinear', 'saga',]
         penalty_list = ['l2', 'l1']
         if best_params.get('solver') is not None:
             best_params['solver'] = solver_list[best_params['solver']]
@@ -137,10 +164,12 @@ def classification_optimization(x_train: ArrayLike, y_train: ArrayLike,
         if best_params.get('C') is not None:
             best_params['C'] = float(best_params['C'])
 
-    # Convert ints and floats
+    # Ensure correct casting
     if best_params is not None:
         for key in best_params:
-            if isinstance(best_params[key], float) and key not in ['learning_rate', 'C', 'l2_regularization', 'subsample', 'colsample_bytree']:
+            if isinstance(best_params[key], float) and key not in ['learning_rate', 'C', 
+                                                                   'l2_regularization', 
+                                                                   'subsample', 'colsample_bytree']:
                 best_params[key] = int(best_params[key])
 
     logger.info(f"Best parameters for {model_family}: {best_params}")

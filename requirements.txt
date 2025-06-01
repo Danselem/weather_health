@@ -16,3 +16,4 @@ python-dotenv
 prefect
 ydata-profiling
 lightgbm
+dvc
