@@ -105,7 +105,7 @@ def classification_optimization(x_train: ArrayLike, y_train: ArrayLike,
         search_space = {
             'C': hp.loguniform('C', np.log(0.001), np.log(10)),
             'solver': hp.choice('solver', ['liblinear', 'saga',]),
-            'penalty': hp.choice('penalty', ['l2', 'l1',,]),
+            'penalty': hp.choice('penalty', ['l2', 'l1',]),
             'max_iter': 200
         }
 
