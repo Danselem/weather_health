@@ -22,13 +22,16 @@ clean:
 	uv run -m src.clean_data
 
 transform:
-	uv run -m src.transform
+	uv run -m src.transform 
 
 train:
 	uv run -m src.train
 
 run:
-	uv run src/app.py
+	uv run -m src.tr3
 
 dl:
 	uv run src/download.py
+
+prefect:
+	uv run prefect server start &

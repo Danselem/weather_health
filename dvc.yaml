@@ -1,0 +1,31 @@
+stages:
+  data_split:
+    cmd: uv run -m src.data_split
+    deps:
+    - src/data_split.py
+    - data/raw/
+    outs:
+    - data/interim/heart_train.parquet
+    - data/interim/heart_test.parquet
+
+  data_cleaning:
+    cmd: uv run -m src.data_cleaning
+    deps:
+    - src/data_cleaning.py
+    - data/interim/heart_train.parquet
+    - data/interim/heart_test.parquet
+    outs:
+    - data/processed/heart_train_cleaned.parquet
+
+  modeling:
+    cmd: uv run -m src.modeling
+    deps:
+    - src/modeling.py
+    - data/processed/heart_train_cleaned.parquet
+    params:
+    - modeling
+
+  save_model:
+	  cmd: uv run -m src.gather_mlflow_model
+    outs:
+    - model.pkl

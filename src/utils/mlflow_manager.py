@@ -9,6 +9,7 @@ import yaml
 
 from dotenv import load_dotenv
 from mlflow.tracking import MlflowClient
+from mlflow.models.signature import infer_signature
 from numpy.typing import ArrayLike
 from sklearn.ensemble import (
     RandomForestClassifier,
@@ -22,6 +23,7 @@ from sklearn.metrics import (
     recall_score, roc_auc_score
 )
 from sklearn.model_selection import train_test_split
+from prefect import flow, task
 
 from src.utils.plotoutputs import plot_confusion_matrix
 from src import logger
@@ -36,13 +38,6 @@ os.environ['PYTHONHASHSEED'] = str(SEED)
 DAGSHUB_REPO_OWNER = os.getenv("DAGSHUB_REPO_OWNER")
 DAGSHUB_REPO = os.getenv("DAGSHUB_REPO")
 
-with open(Path("./params.yaml"), "r") as f:
-    params = yaml.safe_load(f)
-    x_train_path = Path(params["data"]["x_train_path"])
-    y_train_path = Path(params["data"]["y_train_path"])
-    x_test_path = Path(params["data"]["x_test_path"])
-    y_test_path = Path(params["data"]["y_test_path"])
-
 
 def config_mlflow() -> None:
     if DAGSHUB_REPO_OWNER is None or DAGSHUB_REPO is None or os.getenv("DAGSHUB_TOKEN") is None:
@@ -53,8 +48,9 @@ def config_mlflow() -> None:
         raise ValueError("DAGSHUB_TOKEN environment variable must be set.")
     os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
     mlflow.set_tracking_uri(f"https://dagshub.com/{DAGSHUB_REPO_OWNER}/{DAGSHUB_REPO}.mlflow")
+    # mlflow.set_tag("developer", "daniel")
 
-
+@task(name="create_mlflow_experiment", retries=3, retry_delay_seconds=10, log_prints=True)
 def create_mlflow_experiment(experiment_name: str) -> None:
     config_mlflow()
     experiment = mlflow.get_experiment_by_name(experiment_name)
@@ -67,7 +63,7 @@ def create_mlflow_experiment(experiment_name: str) -> None:
 
 
 def _evaluate_and_log_model(model, model_name: str, best_params: dict,
-                            x_train: ArrayLike, y_train: ArrayLike) -> str:
+                            x_train: ArrayLike, y_train: ArrayLike, nested=False) -> str:
     x_train, x_val, y_train, y_val = train_test_split(
         x_train, y_train, test_size=0.2, random_state=SEED)
 
@@ -81,7 +77,7 @@ def _evaluate_and_log_model(model, model_name: str, best_params: dict,
     is_multiclass = len(np.unique(y_train)) > 2
     average_type = "macro" if is_multiclass else "binary"
 
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=nested) as run:
         mlflow.log_params(best_params)
 
         # Validation metrics
@@ -104,11 +100,19 @@ def _evaluate_and_log_model(model, model_name: str, best_params: dict,
         else:
             mlflow.log_metric("train_roc_auc", float(roc_auc_score(y_train, train_probs[:, 1])))
 
+
+        signature = infer_signature(x_val, val_preds)
+        input_example = x_val.iloc[:1]
+        
         # Save model
         if model_name == "LGBMClassifier":
-            mlflow.lightgbm.log_model(model, "model") # type: ignore
+            mlflow.lightgbm.log_model(model, "model", 
+                                    signature=signature,
+                                    input_example=input_example) # type: ignore
         else:
-            mlflow.sklearn.log_model(model, "model") # type: ignore
+            mlflow.sklearn.log_model(model, "model",
+                                    signature=signature,
+                                    input_example=input_example) # type: ignore
 
         # Confusion matrices
         plt.switch_backend("agg")
@@ -120,41 +124,104 @@ def _evaluate_and_log_model(model, model_name: str, best_params: dict,
         os.remove("val_confusion_matrix.png")
 
         # Params & Data artifacts
-        mlflow.log_artifact("params.yaml")
-        mlflow.log_artifact("dvc.yaml")
-        mlflow.log_artifact(str(x_train_path))
-        mlflow.log_artifact(str(y_train_path))
-        mlflow.log_artifact(str(x_test_path))
-        mlflow.log_artifact(str(y_test_path))
+        if os.path.exists("params.yaml"):
+            mlflow.log_artifact("params.yaml")
+        if os.path.exists("dvc.yaml"):
+            mlflow.log_artifact("dvc.yaml")
+        
 
         return run.info.run_id
 
-
+@task(name="register_random_forest", retries=3, retry_delay_seconds=10, log_prints=True)
 def register_random_forest(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
     model = RandomForestClassifier(**best_params, random_state=SEED)
-    return _evaluate_and_log_model(model, "RandomForest", best_params, x_train, y_train)
+    return _evaluate_and_log_model(model, "RandomForest", best_params, x_train, y_train, nested=True)
 
-
+@task(name="register_gradient_boosting", retries=3, retry_delay_seconds=10, log_prints=True)   
 def register_gradient_boosting(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
     model = GradientBoostingClassifier(**best_params, random_state=SEED)
-    return _evaluate_and_log_model(model, "GradientBoosting", best_params, x_train, y_train)
+    return _evaluate_and_log_model(model, "GradientBoosting", best_params, x_train, y_train, nested=True)
 
-
+@task(name="register_hist_gradient_boosting", retries=3, retry_delay_seconds=10, log_prints=True)
 def register_hist_gradient_boosting(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
     model = HistGradientBoostingClassifier(**best_params, random_state=SEED)
-    return _evaluate_and_log_model(model, "HistGradientBoosting", best_params, x_train, y_train)
+    return _evaluate_and_log_model(model, "HistGradientBoosting", best_params, x_train, y_train, nested=True)
 
-
+@task(name="register_logistic_regression", retries=3, retry_delay_seconds=10, log_prints=True) 
 def register_logistic_regression(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
     model = LogisticRegression(**best_params, random_state=SEED, max_iter=1000)
-    return _evaluate_and_log_model(model, "LogisticRegression", best_params, x_train, y_train)
+    return _evaluate_and_log_model(model, "LogisticRegression", best_params, x_train, y_train, nested=True)
 
-
+@task(name="register_lgbm_classifier", retries=3, retry_delay_seconds=10, log_prints=True)
 def register_lgbm_classifier(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
     model = LGBMClassifier(**best_params, random_state=SEED, verbose=-1)
-    return _evaluate_and_log_model(model, "LGBMClassifier", best_params, x_train, y_train)
+    return _evaluate_and_log_model(model, "LGBMClassifier", best_params, x_train, y_train, nested=True)
 
 
+
+@task(name="register_best_model", retries=3, retry_delay_seconds=10, log_prints=True)
+def register_best_model(model_family: str, loss_function: str) -> None:
+    """Register the best model after the optimization process with tags and description"""
+    experiment_name = f"{model_family}_experiment"
+    mlflow.set_experiment(experiment_name)
+    client = MlflowClient()
+
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        raise ValueError(f"Experiment '{experiment_name}' not found")
+
+    runs = client.search_runs(
+        experiment_ids=[experiment.experiment_id],
+        order_by=[f"metrics.{loss_function} ASC"]
+    )
+
+    if not runs:
+        raise ValueError("No runs found for registration")
+
+    logger.info(f"Found {len(runs)} runs in experiment '{experiment.name}'")
+
+    best_run = runs[0]
+    run_id = best_run.info.run_id
+    model_uri = f"runs:/{run_id}/model"
+    model_name = f"{model_family}_best_model"
+
+    try:
+        result = mlflow.register_model(model_uri=model_uri, name=model_name)
+        logger.info(f"Model registered: {result.name}, version: {result.version}")
+
+        # Add tags
+        client.set_model_version_tag(
+            name=model_name,
+            version=result.version,
+            key="model_family",
+            value=model_family
+        )
+        client.set_model_version_tag(
+            name=model_name,
+            version=result.version,
+            key="loss_function",
+            value=loss_function
+        )
+
+        # Set description
+        client.update_model_version(
+            name=model_name,
+            version=result.version,
+            description=(
+                f"Best {model_family} model optimized for {loss_function.lower()} "
+                f"using Hyperopt. Registered from run {run_id}."
+            )
+        )
+
+        logger.info(f"Tags and description added to model version {result.version}")
+
+    except Exception as e:
+        logger.error(f"Failed to register or tag model: {e}")
+
+
+
+
+@task(name="load_model_by_name", retries=3, retry_delay_seconds=10, log_prints=True)
 def load_model_by_name(model_name: str):
     config_mlflow()
     client = MlflowClient()

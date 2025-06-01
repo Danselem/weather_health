@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "dvc>=3.59.2",
     "evidently>=0.7.6",
     "fastparquet>=2024.11.0",
     "hyperopt>=0.2.7",

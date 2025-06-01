@@ -11,6 +11,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.model_selection import train_test_split
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 from src import logger
+from utils.mlflow_manager import *
 
 
 class WeatherDiseaseTrainer:
