@@ -28,10 +28,22 @@ train:
 	uv run -m src.train
 
 run:
-	uv run -m src.tr3
+	uv run -m src.train
 
 dl:
 	uv run src/download.py
 
 prefect:
 	uv run prefect server start &
+
+prefect-init:
+	uv run prefect init
+
+worker:
+	uv run prefect worker start -p weather -t process &
+
+deploy:
+	uv run prefect deploy src/train.py:main -n weather-health -p weather 
+
+deployment:
+	uv run prefect deployment run 'train_model/weather-health'
