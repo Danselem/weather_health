@@ -184,6 +184,6 @@ cython_debug/
 # data/processed/y_test.csv
 # data/processed/y_train.csv
 
-**/.terraform/
+**infra/.terraform
 logs
 tff
