@@ -63,10 +63,8 @@ def create_mlflow_experiment(experiment_name: str) -> None:
 
 
 def _evaluate_and_log_model(model, model_name: str, best_params: dict,
-                            x_train: ArrayLike, y_train: ArrayLike, nested=False) -> str:
-    x_train, x_val, y_train, y_val = train_test_split(
-        x_train, y_train, test_size=0.2, random_state=SEED)
-
+                            x_train: ArrayLike, y_train: ArrayLike, x_val: ArrayLike, y_val: ArrayLike, nested=False) -> str:
+    
     model.fit(x_train, y_train)
 
     train_preds = model.predict(x_train)
@@ -133,29 +131,54 @@ def _evaluate_and_log_model(model, model_name: str, best_params: dict,
         return run.info.run_id
 
 @task(name="register_random_forest", retries=3, retry_delay_seconds=10, log_prints=True)
-def register_random_forest(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
+def register_random_forest(x_train: ArrayLike, 
+                           y_train: ArrayLike, 
+                           x_val: ArrayLike, 
+                           y_val: ArrayLike, 
+                           best_params: dict) -> str:
+    """Register the Random Forest model and evaluate it on the validation set"""
     model = RandomForestClassifier(**best_params, random_state=SEED)
-    return _evaluate_and_log_model(model, "RandomForest", best_params, x_train, y_train, nested=True)
+    return _evaluate_and_log_model(model, "RandomForest", best_params, x_train, y_train, x_val, y_val, nested=True)
 
 @task(name="register_gradient_boosting", retries=3, retry_delay_seconds=10, log_prints=True)   
-def register_gradient_boosting(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
+def register_gradient_boosting(x_train: ArrayLike, 
+                               y_train: ArrayLike, 
+                               x_val: ArrayLike, 
+                               y_val: ArrayLike, 
+                               best_params: dict) -> str:
+    """Register the Gradient Boosting model and evaluate it on the validation set"""
     model = GradientBoostingClassifier(**best_params, random_state=SEED)
-    return _evaluate_and_log_model(model, "GradientBoosting", best_params, x_train, y_train, nested=True)
+    return _evaluate_and_log_model(model, "GradientBoosting", best_params, x_train, y_train, x_val, y_val, nested=True)
 
 @task(name="register_hist_gradient_boosting", retries=3, retry_delay_seconds=10, log_prints=True)
-def register_hist_gradient_boosting(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
+def register_hist_gradient_boosting(x_train: ArrayLike, 
+                                    y_train: ArrayLike, 
+                                    x_val: ArrayLike, 
+                                    y_val: ArrayLike, 
+                                    best_params: dict) -> str:
+    """Register the Histogram Gradient Boosting model and evaluate it on the validation set"""
     model = HistGradientBoostingClassifier(**best_params, random_state=SEED)
     return _evaluate_and_log_model(model, "HistGradientBoosting", best_params, x_train, y_train, nested=True)
 
 @task(name="register_logistic_regression", retries=3, retry_delay_seconds=10, log_prints=True) 
-def register_logistic_regression(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
+def register_logistic_regression(x_train: ArrayLike, 
+                                 y_train: ArrayLike, 
+                                 x_val: ArrayLike, 
+                                 y_val: ArrayLike, 
+                                 best_params: dict) -> str:
+    """Register the Logistic Regression model and evaluate it on the validation set"""
     model = LogisticRegression(**best_params, random_state=SEED, max_iter=1000)
-    return _evaluate_and_log_model(model, "LogisticRegression", best_params, x_train, y_train, nested=True)
+    return _evaluate_and_log_model(model, "LogisticRegression", best_params, x_train, y_train, x_val, y_val, nested=True)
 
 @task(name="register_lgbm_classifier", retries=3, retry_delay_seconds=10, log_prints=True)
-def register_lgbm_classifier(x_train: ArrayLike, y_train: ArrayLike, best_params: dict) -> str:
+def register_lgbm_classifier(x_train: ArrayLike, 
+                             y_train: ArrayLike, 
+                             x_val: ArrayLike, 
+                             y_val: ArrayLike, 
+                             best_params: dict) -> str:
+    """Register the LightGBM Classifier model and evaluate it on the validation set"""
     model = LGBMClassifier(**best_params, random_state=SEED, verbose=-1)
-    return _evaluate_and_log_model(model, "LGBMClassifier", best_params, x_train, y_train, nested=True)
+    return _evaluate_and_log_model(model, "LGBMClassifier", best_params, x_train, y_train, x_val, y_val, nested=True)
 
 
 

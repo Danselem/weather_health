@@ -165,7 +165,7 @@ def main():
         scaler_path = params["artifacts"]["scaler_path"]
         x_test_path = params["data"]["x_test_path"]
         y_test_path = params["data"]["y_test_path"]
-        label_encoder_path = params["ar§tifacts"]["label_encoder_path"]
+        label_encoder_path = params["artifacts"]["label_encoder_path"]
         model_metrics_path = params["reports"]["model_metrics_path"]
         predictions_path = params["reports"]["predictions_path"]
         feature_importance_path = params["reports"]["feature_importance_path"]

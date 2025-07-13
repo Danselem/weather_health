@@ -25,10 +25,12 @@ The dataset contains features related to weather and environmental measurements 
 | AgeGroup        | Age bracket of the patient                       |
 | DiseaseLabel    | Target class (e.g., Asthma, Flu, Healthy, etc.)  |
 
+**Dataset Source:** [Kaggle](https://www.kaggle.com/datasets/orvile/weather-related-disease-prediction-dataset/data)
+
 ## 📁 Project Structure
 
 ```
-project1/
+weather-health/
 ├── data/
 │   ├── raw/               # Raw input datasets
 │   ├── processed/         # Preprocessed train/test datasets
@@ -47,15 +49,15 @@ project1/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/weather-disease-prediction.git
-cd weather-disease-prediction
+git clone https://github.com/Danselem/weather-health.git
+cd weather-health
 ```
 
 ### 2. Create and activate a virtual environment
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+python -m venv .venv
+source .venv/bin/activate  # or `venv\Scripts\activate` on Windows
 ```
 
 ### 3. Install dependencies
@@ -80,7 +82,7 @@ These should be saved in `data/processed/`.
 python src/train.py
 ```
 
-This saves the best model pipeline to `models/best_model.pkl`.
+This saves the best model pipeline to `models/best_model.pkl`. All experiments can be accessed in [DagsHub](https://dagshub.com/Danselem/weather_health/experiments).
 
 ### 6. Evaluate the model
 
@@ -168,10 +170,10 @@ pytest tests/
 
 ## 📜 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT [License](/LICENSE).
 
 ---
 
 ## 🙋🏽‍♀️ Contact
 
-Created by [Your Name](mailto:your.email@example.com). Feel free to reach out with questions, issues, or suggestions.
+Created by [Daniel Egbo](mailto:danoegbo@example.com). Feel free to reach out with questions, issues, or suggestions.

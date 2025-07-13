@@ -11,9 +11,12 @@ pyarrow
 hyperopt
 mlflow
 psycopg-binary
+psycopg2-binary
+psycopg
 evidently
 python-dotenv
 prefect
 ydata-profiling
 lightgbm
 dvc
+prefect-aws

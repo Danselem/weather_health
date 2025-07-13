@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 import uuid
 from typing import List, Optional, Union
+from prefect import task, flow
 from src import logger
 
 
@@ -37,11 +38,13 @@ class DataCleaner:
         self.output_path: Path = Path(output_path)
         self.data: Optional[pd.DataFrame] = None
 
+    @task(name="load_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def load_data(self) -> None:
         """Load the dataset from the CSV file into a pandas DataFrame."""
         self.data = pd.read_csv(self.input_path)
         logger.info(f"Loaded data from {self.input_path} with shape {self.data.shape}")
 
+    @task(name="add_uuid_column", retries=3, retry_delay_seconds=10, log_prints=True)
     def add_uuid_column(
         self,
         exclude_cols: Optional[List[str]] = None,
@@ -71,6 +74,7 @@ class DataCleaner:
         logger.info("UUID column added")
         logger.info("UUID column shape: %s", self.data.shape)
 
+    @task(name="clean_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def clean_data(self) -> None:
         """
         Clean the dataset by removing specified columns and duplicate rows.
@@ -100,6 +104,7 @@ class DataCleaner:
         self.data.to_parquet(self.output_path, index=False, engine="pyarrow")
         logger.info(f"Data saved to {self.output_path}")
 
+    @flow(name="clean_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def run(self) -> None:
         """
         Run the full data cleaning pipeline:

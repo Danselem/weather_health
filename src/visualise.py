@@ -2,6 +2,7 @@ import os
 import yaml
 from pathlib import Path
 import pandas as pd
+from prefect import task, flow
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
@@ -43,6 +44,7 @@ class EDAReport:
         desc_stats.to_csv(self.stats_path)
         logger.info(f"Statistics saved to {self.stats_path}")
 
+    @task(name="plot_missing_values", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_missing_values(self, pdf):
         missing = self.data.isnull().sum()
         missing_nonzero = missing[missing > 0]
@@ -66,6 +68,7 @@ class EDAReport:
         else:
             logger.info("No missing values found.")
 
+    @task(name="plot_custom_missing_style", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_custom_missing_style(self, pdf):
         fig = plt.figure(figsize=(18, 6))
         percent_zeros = pd.DataFrame((self.data == 0).sum() * 100 / self.data.shape[0]).reset_index()
@@ -84,6 +87,7 @@ class EDAReport:
         plt.close()
         logger.info("Custom styled zero-values column plot saved")
 
+    @task(name="plot_histograms", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_histograms(self, pdf):
         numeric_cols = [col for col in self.data.select_dtypes(include='number').columns if self.data[col].nunique() > 2]
         for col in numeric_cols:
@@ -95,6 +99,7 @@ class EDAReport:
             plt.close()
             logger.info(f"Histogram of {col} saved")
 
+    @task(name="plot_value_counts", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_value_counts(self, pdf):
         numeric_cols = self.data.select_dtypes(include='number').columns
         categorical_cols = [
@@ -110,6 +115,7 @@ class EDAReport:
             plt.close()
             logger.info(f"Value Counts of {col} saved")
 
+    @task(name="plot_correlation_heatmap", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_correlation_heatmap(self, pdf):
         numeric_cols = [col for col in self.data.select_dtypes(include='number').columns if self.data[col].nunique() > 2]
         if self.target_col and self.target_col in self.data.columns and self.data[self.target_col].nunique() > 2:
@@ -125,6 +131,7 @@ class EDAReport:
             plt.close()
             logger.info("Correlation Heatmap saved")
 
+    @task(name="plot_boxplots_by_target", retries=3, retry_delay_seconds=10, log_prints=True)
     def plot_boxplots_by_target(self, pdf):
         if self.target_col and self.target_col in self.data.columns:
             numeric_cols = [col for col in self.data.select_dtypes(include='number').columns if self.data[col].nunique() > 2]
@@ -138,6 +145,7 @@ class EDAReport:
                 plt.close()
                 logger.info(f"Boxplot of {col} by {self.target_col} saved")
 
+    @flow(name="generate_report", retries=3, retry_delay_seconds=10, log_prints=True)
     def generate_report(self):
         self.profile_report()
         self.save_statistics()

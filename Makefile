@@ -15,6 +15,9 @@ delete:
 env:
 	cp .env.example .env
 
+awscreds:
+	uv run -m src.utils.create_aws_block
+
 visualise:
 	uv run -m src.visualise
 
@@ -27,11 +30,33 @@ transform:
 train:
 	uv run -m src.train
 
-run:
-	uv run -m src.train
+pipeline:
+	uv run -m src.pipeline
 
-dl:
-	uv run src/download.py
+fetch-best-model:
+	uv run -m src.fetch_best_model
+
+sample:
+	uv run -m src.create_input_sample
+
+serve_local:
+	uv run -m src.serve_local
+
+serve:
+	uv run -m src.serve
+
+observe:
+	uv run -m src.evidently_metrics
+
+quality_checks:
+	@echo "Running quality checks"
+	uv run -m isort .
+	uv run -m black .
+	uv run -m ruff check .
+	uv run -m mypy .
+
+dvc:
+	uv run dvc repro
 
 prefect:
 	uv run prefect server start &
@@ -47,3 +72,10 @@ deploy:
 
 deployment:
 	uv run prefect deployment run 'train_model/weather-health'
+
+
+build:
+	docker build -t weather-disease:v1.0.0 .
+
+run:
+	docker run -d -p 9696:9696 weather-disease:v1.0.0

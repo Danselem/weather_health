@@ -1,9 +1,11 @@
+# model_trainer.py
+
 import numpy as np
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
 from pathlib import Path
-from prefect import flow, task
+from prefect import flow
 
 from src.utils.mlflow_manager import (
     create_mlflow_experiment,
@@ -18,7 +20,6 @@ from src.utils.optimisation import classification_optimization
 from src import logger
 
 
-# Mapping of model family to registration function
 REGISTER_FUNCTIONS = {
     "random_forest": register_random_forest,
     "gradient_boosting": register_gradient_boosting,
@@ -27,64 +28,85 @@ REGISTER_FUNCTIONS = {
     "lightgbm": register_lgbm_classifier
 }
 
-@flow(name="train_model", retries=3, retry_delay_seconds=10, log_prints=True)
-def main():
-    """Main function to run the optimization process."""
-    load_dotenv()
 
-    # Load configuration
-    params_file = Path("params.yaml")
-    config = yaml.safe_load(open(params_file, encoding="utf-8"))
-    modeling_params = config["modeling"]
-    data_paths = config["data"]
-    artifacts = config.get("artifacts", {})
+class ModelTrainer:
+    def __init__(self, config_path: str = "params.yaml"):
+        self.config_path = config_path
+        self.config = None
+        self.modeling_params = None
+        self.data_paths = None
+        self.artifacts = None
 
-    n_trials = modeling_params["n_trials"]
-    selected_loss_function = modeling_params["loss_function"]
-    selected_model_family = modeling_params["model_family"]
-    selected_objective_function = modeling_params["objective_function"]
+        self.x_train = None
+        self.y_train = None
+        self.x_test = None
+        self.y_test = None
 
-    # Load data
-    
-    xtrain = pd.read_csv(Path(data_paths["x_train_path"]))
-    ytrain = pd.read_csv(Path(data_paths["y_train_path"])).values.ravel()
+        self._load_config()
+        self._load_data()
 
-    logger.info(f"Loaded training data from {data_paths['x_train_path']} and {data_paths['y_train_path']}")
-    logger.info(f"Selected model family: {selected_model_family}")
-    logger.info(f"Selected loss function: {selected_loss_function}")
+    def _load_config(self):
+        load_dotenv()
+        with open(self.config_path, encoding="utf-8") as f:
+            self.config = yaml.safe_load(f)
+        self.modeling_params = self.config["modeling"]
+        self.data_paths = self.config["data"]
+        self.artifacts = self.config.get("artifacts", {})
 
-    # Create MLflow experiment
-    create_mlflow_experiment(f"{selected_model_family}_experiment")
+    def _load_data(self):
+        self.x_train = pd.read_csv(Path(self.data_paths["x_train_path"]))
+        self.y_train = pd.read_csv(Path(self.data_paths["y_train_path"])).values.ravel()
+        self.x_test = pd.read_csv(Path(self.data_paths["x_test_path"]))
+        self.y_test = pd.read_csv(Path(self.data_paths["y_test_path"])).values.ravel()
+        logger.info("Training and test data loaded successfully.")
 
-    if selected_model_family not in REGISTER_FUNCTIONS:
-        raise ValueError(f"Unsupported model_family '{selected_model_family}'. "
-                         f"Supported families: {list(REGISTER_FUNCTIONS.keys())}")
+    def _get_register_function(self, model_family: str):
+        if model_family not in REGISTER_FUNCTIONS:
+            raise ValueError(
+                f"Unsupported model_family '{model_family}'. "
+                f"Supported families: {list(REGISTER_FUNCTIONS.keys())}"
+            )
+        return REGISTER_FUNCTIONS[model_family]
 
-    # Run optimization
-    best_classification_params = classification_optimization(
-        x_train=xtrain,
-        y_train=ytrain,
-        model_family=selected_model_family,
-        loss_function=selected_loss_function,
-        # objective_function=selected_objective_function,
-        num_trials=n_trials,
-        diagnostic=True
-    )
+    @flow(name="train_model", retries=3, retry_delay_seconds=10, log_prints=True)
+    def run(self):
+        model_family = self.modeling_params["model_family"]
+        loss_function = self.modeling_params["loss_function"]
+        n_trials = self.modeling_params["n_trials"]
 
-    # Register model
-    register_func = REGISTER_FUNCTIONS[selected_model_family]
-    register_func(
-        x_train=xtrain,
-        y_train=ytrain,
-        best_params=best_classification_params
-    )
+        logger.info(f"Model Family: {model_family}")
+        logger.info(f"Loss Function: {loss_function}")
+        create_mlflow_experiment(f"{model_family}_experiment")
 
-    # Register best model
-    register_best_model(
-        model_family=selected_model_family,
-        loss_function=selected_loss_function
-    )
+        # Optimization
+        best_params = classification_optimization(
+            x_train=self.x_train,
+            y_train=self.y_train,
+            model_family=model_family,
+            loss_function=loss_function,
+            num_trials=n_trials,
+            diagnostic=True
+        )
+
+        # Model registration
+        register_func = self._get_register_function(model_family)
+        register_func(
+            x_train=self.x_train,
+            y_train=self.y_train,
+            x_val=self.x_test,
+            y_val=self.y_test,
+            best_params=best_params
+        )
+
+        register_best_model(
+            model_family=model_family,
+            loss_function=loss_function
+        )
+        logger.info("Training pipeline completed successfully.")
 
 
+# Optional entry point
 if __name__ == "__main__":
-    main()
+    params_file = "params.yaml"
+    trainer = ModelTrainer(params_file)
+    trainer.run()
