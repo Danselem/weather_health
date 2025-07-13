@@ -1,6 +1,0 @@
-aws_profile        = "Danselem"
-aws_region         = "us-east-1"
-ec2_key_name       = "mlfkp"
-db_password        = "mlflow123"
-artifact_bucket_name = "oegbo-weatherhealth"
-project = "weather-disease-pipeline"
