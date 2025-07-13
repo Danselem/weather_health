@@ -187,3 +187,15 @@ cython_debug/
 **infra/.terraform
 logs
 tff
+
+# Ignore Terraform local files inside infra folder
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+infra/*.tfvars.json
+infra/*.tfplan
+infra/crash.log
+infra/override.tf
+infra/override.tf.json
+infra/.terraform.lock.hcl
