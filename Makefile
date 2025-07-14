@@ -5,9 +5,9 @@ init:
 
 install:
 	. .venv/bin/activate
-	# uv pip install --all-extras --requirement pyproject.toml
+	uv pip install --all-extras --requirement pyproject.toml
 	# uv pip sync requirements.txt
-	uv add -r requirements.txt
+	# uv add -r requirements.txt
 
 delete:
 	rm uv.lock pyproject.toml .python-version && rm -rf .venv
@@ -79,3 +79,6 @@ build:
 
 run:
 	docker run -d -p 9696:9696 weather-disease:v1.0.0
+
+start-monitoring:
+	cd monitoring && docker-compose up -d
