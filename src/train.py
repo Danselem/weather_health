@@ -1,31 +1,30 @@
 # model_trainer.py
 
-import numpy as np
+from pathlib import Path
+
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
-from pathlib import Path
 from prefect import flow
 
+from src import logger
 from src.utils.mlflow_manager import (
     create_mlflow_experiment,
-    register_random_forest,
+    register_best_model,
     register_gradient_boosting,
     register_hist_gradient_boosting,
-    register_logistic_regression,
     register_lgbm_classifier,
-    register_best_model
+    register_logistic_regression,
+    register_random_forest,
 )
 from src.utils.optimisation import classification_optimization
-from src import logger
-
 
 REGISTER_FUNCTIONS = {
     "random_forest": register_random_forest,
     "gradient_boosting": register_gradient_boosting,
     "logistic_regression": register_logistic_regression,
     "hist_gradient_boosting": register_hist_gradient_boosting,
-    "lightgbm": register_lgbm_classifier
+    "lightgbm": register_lgbm_classifier,
 }
 
 
@@ -85,7 +84,7 @@ class ModelTrainer:
             model_family=model_family,
             loss_function=loss_function,
             num_trials=n_trials,
-            diagnostic=True
+            diagnostic=True,
         )
 
         # Model registration
@@ -95,13 +94,10 @@ class ModelTrainer:
             y_train=self.y_train,
             x_val=self.x_test,
             y_val=self.y_test,
-            best_params=best_params
+            best_params=best_params,
         )
 
-        register_best_model(
-            model_family=model_family,
-            loss_function=loss_function
-        )
+        register_best_model(model_family=model_family, loss_function=loss_function)
         logger.info("Training pipeline completed successfully.")
 
 

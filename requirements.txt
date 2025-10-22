@@ -20,3 +20,7 @@ ydata-profiling
 lightgbm
 dvc
 prefect-aws
+isort
+black
+ruff
+mypy

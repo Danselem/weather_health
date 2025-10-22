@@ -1,10 +1,12 @@
 """Script to split the Indicators of Heart Disease dataset into training and
 testing sets using a class-based design."""
 
-import pandas as pd
 from pathlib import Path
-from sklearn.model_selection import train_test_split
 from typing import Tuple, Union
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
 from src import logger
 
 
@@ -23,11 +25,17 @@ class DataSplitter:
 
     def __init__(
         self,
-        raw_data_path: Union[str, Path] = 'project1/data/interim/weather_disease.parquet',
-        train_output_path: Union[str, Path] = 'project1/data/interim/weather_disease_train.parquet',
-        test_output_path: Union[str, Path] = 'project1/data/interim/weather_disease_test.parquet',
+        raw_data_path: Union[
+            str, Path
+        ] = "project1/data/interim/weather_disease.parquet",
+        train_output_path: Union[
+            str, Path
+        ] = "project1/data/interim/weather_disease_train.parquet",
+        test_output_path: Union[
+            str, Path
+        ] = "project1/data/interim/weather_disease_test.parquet",
         test_size: float = 0.2,
-        random_state: int = 1024
+        random_state: int = 1024,
     ) -> None:
         """
         Initialize the DataSplitter with file paths and split parameters.
@@ -69,9 +77,7 @@ class DataSplitter:
         """
         logger.info("Splitting the data into training and testing sets")
         df_train, df_test = train_test_split(
-            data,
-            test_size=self.test_size,
-            random_state=self.random_state
+            data, test_size=self.test_size, random_state=self.random_state
         )
         logger.info(f"Training set shape: {df_train.shape}")
         logger.info(f"Testing set shape: {df_test.shape}")
@@ -106,5 +112,5 @@ def main():
     splitter.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

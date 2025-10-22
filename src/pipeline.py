@@ -1,15 +1,12 @@
-from fastapi import params
-import yaml
 from pathlib import Path
+
 import pandas as pd
+import yaml
 
-from src.visualise import EDAReport
 from src.clean_data import DataCleaner
-from src.transform import WeatherDiseasePreprocessor
 from src.train import ModelTrainer
-
-
-
+from src.transform import WeatherDiseasePreprocessor
+from src.visualise import EDAReport
 
 # Load configuration
 params_file = Path("params.yaml")
@@ -29,10 +26,7 @@ data = pd.read_csv(data_path)
 eda = EDAReport(data, target_col=target_col, output_prefix=output_prefix)
 eda.generate_report()
 
-cleaner = DataCleaner(
-        input_path=data_path,
-        output_path=output_path
-    )
+cleaner = DataCleaner(input_path=data_path, output_path=output_path)
 cleaner.run()
 
 processor = WeatherDiseasePreprocessor(config_path=params_file)
@@ -41,4 +35,3 @@ processor.preprocess_data()
 
 trainer = ModelTrainer(str(params_file))
 trainer.run()
-

@@ -1,24 +1,26 @@
 """
-FastAPI service for weather‑disease prediction (pickle model + scaler + label encoder).
+FastAPI service for weather‑disease prediction 
+(pickle model + scaler + label encoder).
 """
 
 import json
 import logging
+import pickle
 from pathlib import Path
 from typing import Dict
 
 import pandas as pd
-import pickle
 from fastapi import FastAPI, HTTPException
+import uvicorn
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # ── Artifact paths inside the Docker image ───────────────────────────────────
-MODEL_PATH   = Path("/code/weather_disease_model.pkl")
-SCALER_PATH  = Path("/code/minmax_scaler.pkl")
-ENCODER_PATH = Path("/code/label_encoder.pkl")
+MODEL_PATH = Path("weather_disease_model.pkl")
+SCALER_PATH = Path("minmax_scaler.pkl")
+ENCODER_PATH = Path("label_encoder.pkl")
 
 # ── Load artifacts -----------------------------------------------------------
 with open(MODEL_PATH, "rb") as f:
@@ -36,15 +38,17 @@ feature_order = list(minmax_scaler.feature_names_in_)  # exact training column o
 app = FastAPI(
     title="Weather‑Disease Prediction API",
     openapi_tags=[
-        {"name": "Health",     "description": "API health‑check"},
+        {"name": "Health", "description": "API health‑check"},
         {"name": "Prediction", "description": "Model inference"},
     ],
 )
+
 
 # Health‑check ----------------------------------------------------------------
 @app.get("/", tags=["Health"])
 def api_health() -> Dict[str, str]:
     return {"status": "healthy"}
+
 
 # Prediction ------------------------------------------------------------------
 @app.post("/predict", tags=["Prediction"])
@@ -62,17 +66,19 @@ def predict(payload: Dict) -> Dict[str, str]:
         # Check for missing features
         missing = [col for col in feature_order if col not in payload]
         if missing:
-            raise HTTPException(status_code=400,
-                                detail=f"Missing feature(s): {', '.join(missing)}")
+            raise HTTPException(
+                status_code=400, detail=f"Missing feature(s): {', '.join(missing)}"
+            )
 
         # Build DataFrame in correct column order
-        input_df = pd.DataFrame([[payload[col] for col in feature_order]],
-                                columns=feature_order)
+        input_df = pd.DataFrame(
+            [[payload[col] for col in feature_order]], columns=feature_order
+        )
         logger.debug("Input DataFrame:\n%s", input_df)
 
         # Scale features and wrap back into DataFrame to keep column names
         scaled_array = minmax_scaler.transform(input_df)
-        scaled_df    = pd.DataFrame(scaled_array, columns=feature_order)
+        scaled_df = pd.DataFrame(scaled_array, columns=feature_order)
         logger.debug("Scaled input DataFrame:\n%s", scaled_df)
 
         # Predict
@@ -90,3 +96,6 @@ def predict(payload: Dict) -> Dict[str, str]:
     except Exception as err:
         logger.exception("Unexpected error during prediction")
         raise HTTPException(status_code=500, detail=str(err))
+    
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080)

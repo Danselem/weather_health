@@ -1,15 +1,17 @@
-import pandas as pd
-import numpy as np
-import yaml
-import joblib
 from pathlib import Path
-from typing import Dict, Any
-from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from typing import Any, Dict
+
+import joblib
+import numpy as np
+import pandas as pd
+import yaml
+from hyperopt import STATUS_OK, Trials, fmin, hp, tpe
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
+from sklearn.pipeline import Pipeline
+
 from src import logger
 from utils.mlflow_manager import *
 
@@ -31,7 +33,7 @@ class WeatherDiseaseTrainer:
         y_test_path: str,
         model_metrics_path: str,
         predictions_path: str,
-        random_state: int = 1024
+        random_state: int = 1024,
     ):
         self.model_path = Path(model_path)
         self.model_metrics_path = Path(model_metrics_path)
@@ -59,14 +61,22 @@ class WeatherDiseaseTrainer:
             logger.error(f"MinMaxScaler not found at {self.scaler_path}")
             raise FileNotFoundError(f"{self.scaler_path} not found")
 
-        self.metrics_df = pd.DataFrame(columns=["accuracy", "precision", "recall", "f1_score", "model"])
+        self.metrics_df = pd.DataFrame(
+            columns=["accuracy", "precision", "recall", "f1_score", "model"]
+        )
 
     def _evaluate(self, y_true, y_pred) -> Dict[str, float]:
         return {
             "accuracy": float(accuracy_score(y_true, y_pred)),
-            "precision": float(precision_score(y_true, y_pred, average='macro', zero_division=0)),
-            "recall": float(recall_score(y_true, y_pred, average='macro', zero_division=0)),
-            "f1_score": float(f1_score(y_true, y_pred, average='macro', zero_division=0)),
+            "precision": float(
+                precision_score(y_true, y_pred, average="macro", zero_division=0)
+            ),
+            "recall": float(
+                recall_score(y_true, y_pred, average="macro", zero_division=0)
+            ),
+            "f1_score": float(
+                f1_score(y_true, y_pred, average="macro", zero_division=0)
+            ),
         }
 
     def _objective(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -76,16 +86,15 @@ class WeatherDiseaseTrainer:
         if model_type == "rf":
             model = RandomForestClassifier(**params, random_state=self.random_state)
         elif model_type == "lr":
-            model = LogisticRegression(**params, random_state=self.random_state, max_iter=1000)
+            model = LogisticRegression(
+                **params, random_state=self.random_state, max_iter=1000
+            )
         elif model_type == "gb":
             model = GradientBoostingClassifier(**params, random_state=self.random_state)
         else:
             raise ValueError("Unsupported model type")
 
-        pipeline = Pipeline([
-            ("scaler", self.scaler),
-            ("clf", model)
-        ])
+        pipeline = Pipeline([("scaler", self.scaler), ("clf", model)])
 
         pipeline.fit(self.X_train, self.y_train)
         preds = pipeline.predict(self.X_val)
@@ -96,7 +105,7 @@ class WeatherDiseaseTrainer:
             scores["precision"],
             scores["recall"],
             scores["f1_score"],
-            model_type
+            model_type,
         ]
 
         return {"loss": -scores["f1_score"], "status": STATUS_OK, "model": pipeline}
@@ -104,24 +113,27 @@ class WeatherDiseaseTrainer:
     def run(self):
         logger.info("Starting hyperparameter optimization...")
 
-        search_space = hp.choice("classifier_type", [
-            {
-                "type": "rf",
-                "n_estimators": hp.choice("rf_n_estimators", [50, 100, 200]),
-                "max_depth": hp.choice("rf_max_depth", [5, 10, 20, None])
-            },
-            {
-                "type": "lr",
-                "C": hp.loguniform("lr_C", np.log(0.01), np.log(10)),
-                "solver": hp.choice("lr_solver", ["lbfgs", "liblinear"])
-            },
-            {
-                "type": "gb",
-                "n_estimators": hp.choice("gb_n_estimators", [50, 100, 200]),
-                "learning_rate": hp.uniform("gb_learning_rate", 0.01, 0.3),
-                "max_depth": hp.choice("gb_max_depth", [3, 5, 7])
-            }
-        ])
+        search_space = hp.choice(
+            "classifier_type",
+            [
+                {
+                    "type": "rf",
+                    "n_estimators": hp.choice("rf_n_estimators", [50, 100, 200]),
+                    "max_depth": hp.choice("rf_max_depth", [5, 10, 20, None]),
+                },
+                {
+                    "type": "lr",
+                    "C": hp.loguniform("lr_C", np.log(0.01), np.log(10)),
+                    "solver": hp.choice("lr_solver", ["lbfgs", "liblinear"]),
+                },
+                {
+                    "type": "gb",
+                    "n_estimators": hp.choice("gb_n_estimators", [50, 100, 200]),
+                    "learning_rate": hp.uniform("gb_learning_rate", 0.01, 0.3),
+                    "max_depth": hp.choice("gb_max_depth", [3, 5, 7]),
+                },
+            ],
+        )
 
         trials = Trials()
         best = fmin(
@@ -149,10 +161,9 @@ class WeatherDiseaseTrainer:
         logger.info(f"Best model saved to {self.model_path}")
 
         # Save test predictions
-        pd.DataFrame({
-            "y_true": self.y_test,
-            "y_pred": final_preds
-        }).to_csv(self.predictions_path, index=False)
+        pd.DataFrame({"y_true": self.y_test, "y_pred": final_preds}).to_csv(
+            self.predictions_path, index=False
+        )
         logger.info(f"Predictions saved to {self.predictions_path}")
 
 
@@ -180,7 +191,7 @@ def main():
             x_test_path=x_test_path,
             y_test_path=y_test_path,
             model_metrics_path=model_metrics_path,
-            predictions_path=predictions_path
+            predictions_path=predictions_path,
         )
         trainer.run()
     except Exception as e:

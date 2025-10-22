@@ -1,19 +1,19 @@
-import pandas as pd
-import numpy as np
-import joblib
-import yaml
-import matplotlib.pyplot as plt
+import logging
 from pathlib import Path
+
+import joblib
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+import yaml
 from sklearn.metrics import (
     accuracy_score,
+    auc,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
     roc_curve,
-    auc,
 )
-import seaborn as sns
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,9 +74,15 @@ class WeatherDiseaseEvaluator:
         # Calculate metrics
         metrics = {
             "accuracy": accuracy_score(y_true_decoded, y_pred_decoded),
-            "precision": precision_score(y_true_decoded, y_pred_decoded, average="macro", zero_division=0),
-            "recall": recall_score(y_true_decoded, y_pred_decoded, average="macro", zero_division=0),
-            "f1_score": f1_score(y_true_decoded, y_pred_decoded, average="macro", zero_division=0),
+            "precision": precision_score(
+                y_true_decoded, y_pred_decoded, average="macro", zero_division=0
+            ),
+            "recall": recall_score(
+                y_true_decoded, y_pred_decoded, average="macro", zero_division=0
+            ),
+            "f1_score": f1_score(
+                y_true_decoded, y_pred_decoded, average="macro", zero_division=0
+            ),
         }
 
         # Save metrics
@@ -102,7 +108,12 @@ class WeatherDiseaseEvaluator:
         for i in range(n_classes):
             fpr, tpr, _ = roc_curve(y_true_onehot.iloc[:, i], y_proba[:, i])
             roc_auc = auc(fpr, tpr)
-            plt.plot(fpr, tpr, lw=2, label=f"ROC curve of class {classes[i]} (area = {roc_auc:.2f})")
+            plt.plot(
+                fpr,
+                tpr,
+                lw=2,
+                label=f"ROC curve of class {classes[i]} (area = {roc_auc:.2f})",
+            )
 
         plt.plot([0, 1], [0, 1], "k--", lw=2)
         plt.xlim([0.0, 1.0])
@@ -126,10 +137,12 @@ class WeatherDiseaseEvaluator:
             importances = model.feature_importances_
             feature_names = self.X_test.columns
 
-            imp_df = pd.DataFrame({
-                "Feature Name": feature_names,
-                "Importance": importances,
-            }).sort_values(by="Importance", ascending=False)
+            imp_df = pd.DataFrame(
+                {
+                    "Feature Name": feature_names,
+                    "Importance": importances,
+                }
+            ).sort_values(by="Importance", ascending=False)
 
             plt.figure(figsize=(12, 7))
             # Fix for seaborn future warning: add dummy hue and disable legend
@@ -141,7 +154,12 @@ class WeatherDiseaseEvaluator:
                 hue=imp_df["Feature Name"],  # dummy hue to avoid warning
                 legend=False,
             )
-            plt.title("Feature Importance in the Model Prediction", fontweight="black", size=20, pad=20)
+            plt.title(
+                "Feature Importance in the Model Prediction",
+                fontweight="black",
+                size=20,
+                pad=20,
+            )
             plt.yticks(size=12)
             plt.xlabel("Importance")
             plt.ylabel("Feature Name")
@@ -151,7 +169,9 @@ class WeatherDiseaseEvaluator:
             plt.close()
             logger.info(f"Feature importance plot saved to {feat_imp_path}")
         else:
-            logger.warning("Model does not have feature_importances_ attribute; skipping feature importance plot.")
+            logger.warning(
+                "Model does not have feature_importances_ attribute; skipping feature importance plot."
+            )
 
 
 def main():
@@ -159,8 +179,7 @@ def main():
         params_path = Path("params.yaml")
         with open(params_path, "r") as f:
             params = yaml.safe_load(f)
-        
-    
+
         model_path = params["artifacts"]["model_path"]
         scaler_path = params["artifacts"]["scaler_path"]
         x_test_path = params["data"]["x_test_path"]
@@ -171,8 +190,16 @@ def main():
         feature_importance_path = params["reports"]["feature_importance_path"]
         confusion_matrix_path = params["reports"]["confusion_matrix_path"]
         classification_report_path = params["reports"]["classification_report_path"]
-        
-        evaluator = WeatherDiseaseEvaluator(x_test_path=x_test_path, y_test_path=y_test_path, label_encoder_path=label_encoder_path, predictions_path=predictions_path, feature_importance_path=feature_importance_path, confusion_matrix_path=confusion_matrix_path, classification_report_path=classification_report_path)
+
+        evaluator = WeatherDiseaseEvaluator(
+            x_test_path=x_test_path,
+            y_test_path=y_test_path,
+            label_encoder_path=label_encoder_path,
+            predictions_path=predictions_path,
+            feature_importance_path=feature_importance_path,
+            confusion_matrix_path=confusion_matrix_path,
+            classification_report_path=classification_report_path,
+        )
         metrics = evaluator.evaluate()
         logger.info(f"Evaluation complete. Metrics: {metrics}")
     except Exception as e:

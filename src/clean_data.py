@@ -1,11 +1,13 @@
 """DataCleaner class for preprocessing a weather-related disease dataset."""
 
-import pandas as pd
-from pathlib import Path
-import yaml
 import uuid
+from pathlib import Path
 from typing import List, Optional, Union
-from prefect import task, flow
+
+import pandas as pd
+import yaml
+from prefect import flow, task
+
 from src import logger
 
 
@@ -26,7 +28,9 @@ class DataCleaner:
         data (pd.DataFrame): The working DataFrame.
     """
 
-    def __init__(self, input_path: Union[str, Path], output_path: Union[str, Path]) -> None:
+    def __init__(
+        self, input_path: Union[str, Path], output_path: Union[str, Path]
+    ) -> None:
         """
         Initialize the DataCleaner with input and output file paths.
 
@@ -48,7 +52,7 @@ class DataCleaner:
     def add_uuid_column(
         self,
         exclude_cols: Optional[List[str]] = None,
-        namespace: uuid.UUID = uuid.NAMESPACE_DNS
+        namespace: uuid.UUID = uuid.NAMESPACE_DNS,
     ) -> None:
         """
         Add a UUID column based on the hash of each row, excluding specified columns.
@@ -66,10 +70,12 @@ class DataCleaner:
             cols_to_use = [col for col in self.data.columns if col not in exclude_cols]
 
         def row_to_string(row: pd.Series) -> str:
-            return '_'.join(str(value) for value in row)
+            return "_".join(str(value) for value in row)
 
-        uuids = self.data[cols_to_use].apply(lambda row: uuid.uuid5(namespace, row_to_string(row)), axis=1)
-        self.data.insert(0, 'uuid', uuids.astype(str))
+        uuids = self.data[cols_to_use].apply(
+            lambda row: uuid.uuid5(namespace, row_to_string(row)), axis=1
+        )
+        self.data.insert(0, "uuid", uuids.astype(str))
 
         logger.info("UUID column added")
         logger.info("UUID column shape: %s", self.data.shape)
@@ -84,8 +90,14 @@ class DataCleaner:
 
         logger.info("Original data shape: %s", self.data.shape)
 
-        cols_to_drop: List[str] = ['shivering', 'asthma_history', 'high_cholesterol', 'diabetes', 'obesity']
-        self.data.drop(columns=cols_to_drop, inplace=True, errors='ignore')
+        cols_to_drop: List[str] = [
+            "shivering",
+            "asthma_history",
+            "high_cholesterol",
+            "diabetes",
+            "obesity",
+        ]
+        self.data.drop(columns=cols_to_drop, inplace=True, errors="ignore")
         logger.info("Dropped %d columns: %s", len(cols_to_drop), cols_to_drop)
         logger.info("Data shape after dropping columns: %s", self.data.shape)
 
@@ -114,7 +126,7 @@ class DataCleaner:
         - Save cleaned data
         """
         self.load_data()
-        self.add_uuid_column(exclude_cols=['prognosis'])
+        self.add_uuid_column(exclude_cols=["prognosis"])
         self.clean_data()
         self.save_data()
 
@@ -123,12 +135,9 @@ if __name__ == "__main__":
     params_path = Path("params.yaml")
     with open(params_path, "r") as f:
         params = yaml.safe_load(f)
-    
+
     data_path = params["data"]["raw_data_path"]
     output_path = params["data"]["interim_data_path"]
-    
-    cleaner = DataCleaner(
-        input_path=data_path,
-        output_path=output_path
-    )
+
+    cleaner = DataCleaner(input_path=data_path, output_path=output_path)
     cleaner.run()

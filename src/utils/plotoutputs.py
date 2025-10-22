@@ -5,12 +5,12 @@ Helper for plotting confusion matrices with original class names
 restored via the fitted LabelEncoder.
 """
 
-from pathlib import Path
 import pickle
+from pathlib import Path
 from typing import Union
-import yaml
 
 import matplotlib.pyplot as plt
+import yaml
 from numpy.typing import ArrayLike
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelEncoder

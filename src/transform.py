@@ -1,16 +1,16 @@
 # preprocess_weather_disease.py
 
-import pandas as pd
-import numpy as np
-import yaml
 import pickle
 from pathlib import Path
+from typing import Tuple
+
+import pandas as pd
+import yaml
+from prefect import flow, task
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from typing import Tuple
-from prefect import task, flow
-from src import logger
 
+from src import logger
 
 
 class WeatherDiseasePreprocessor:
@@ -31,18 +31,19 @@ class WeatherDiseasePreprocessor:
 
         # Ensure directories exist
         for path in [
-            self.x_train_path, self.y_train_path,
-            self.x_test_path, self.y_test_path,
-            self.scaler_path, self.encoder_path
+            self.x_train_path,
+            self.y_train_path,
+            self.x_test_path,
+            self.y_test_path,
+            self.scaler_path,
+            self.encoder_path,
         ]:
             path.parent.mkdir(parents=True, exist_ok=True)
 
-        
     @task(name="load_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def load_data(self) -> pd.DataFrame:
         logger.info(f"Loading data from {self.input_path}")
         return pd.read_parquet(self.input_path)
-
 
     @task(name="split_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def split_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -55,10 +56,16 @@ class WeatherDiseasePreprocessor:
         return pd.Series(self.label_encoder.fit_transform(y), name=y.name)
 
     @task(name="scale_features", retries=3, retry_delay_seconds=10, log_prints=True)
-    def scale_features(self, X_train: pd.DataFrame, X_test: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def scale_features(
+        self, X_train: pd.DataFrame, X_test: pd.DataFrame
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         logger.info("Scaling features using MinMaxScaler")
-        X_train_scaled = pd.DataFrame(self.scaler.fit_transform(X_train), columns=X_train.columns)
-        X_test_scaled = pd.DataFrame(self.scaler.transform(X_test), columns=X_test.columns)
+        X_train_scaled = pd.DataFrame(
+            self.scaler.fit_transform(X_train), columns=X_train.columns
+        )
+        X_test_scaled = pd.DataFrame(
+            self.scaler.transform(X_test), columns=X_test.columns
+        )
         return X_train_scaled, X_test_scaled
 
     @task(name="save_as_csv", retries=3, retry_delay_seconds=10, log_prints=True)
