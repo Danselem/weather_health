@@ -14,6 +14,7 @@ on:
       image_tag:
         description: 'Docker image tag'
         required: true
+        default: 'latest'
 
 jobs:
   terraform:
@@ -37,29 +38,31 @@ jobs:
           terraform_version: 1.7.0
 
       - name: Terraform Init
-        working-directory: infra-aws/environments/${{ github.event.inputs.environment }}
-        run: terraform init
+        working-directory: infra-aws
+        run: terraform init -upgrade
 
       - name: Terraform Plan
-        working-directory: infra-aws/environments/${{ github.event.inputs.environment }}
-        run: terraform plan
+        working-directory: infra-aws
+        run: terraform plan -var-file=environments/${{ github.event.inputs.environment }}/terraform.tfvars
         env:
           TF_VAR_container_image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/weather-health:${{ github.event.inputs.image_tag }}
 
       - name: Terraform Apply
         if: github.event.inputs.environment == 'dev'
-        working-directory: infra-aws/environments/${{ github.event.inputs.environment }}
-        run: terraform apply -auto-approve
+        working-directory: infra-aws
+        run: terraform apply -var-file=environments/${{ github.event.inputs.environment }}/terraform.tfvars -auto-approve
+        env:
+          TF_VAR_container_image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/weather-health:${{ github.event.inputs.image_tag }}
 
       - name: Terraform Apply (Manual for staging/prod)
         if: github.event.inputs.environment != 'dev'
-        working-directory: infra-aws/environments/${{ github.event.inputs.environment }}
         run: echo "Manual approval required for ${{ github.event.inputs.environment }}"
 
   deploy-ecs:
     name: Deploy to ECS
     runs-on: ubuntu-latest
     needs: terraform
+    if: github.event.inputs.environment == 'dev'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,7 +81,7 @@ jobs:
       - name: Update ECS Service
         env:
           AWS_REGION: us-east-1
-          ECS_CLUSTER: weather-health-${{ github.event.inputs.environment }}
+          ECS_CLUSTER: weather-health-cluster-${{ github.event.inputs.environment }}
           ECS_SERVICE: weather-health-service-${{ github.event.inputs.environment }}
           IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/weather-health:${{ github.event.inputs.image_tag }}
         run: |
@@ -88,17 +91,6 @@ jobs:
             --force-new-deployment \
             --region $AWS_REGION
 
-      - name: Wait for ECS Deployment
-        env:
-          AWS_REGION: us-east-1
-          ECS_CLUSTER: weather-health-${{ github.event.inputs.environment }}
-          ECS_SERVICE: weather-health-service-${{ github.event.inputs.environment }}
-        run: |
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --region $AWS_REGION
-
       - name: Get Service URL
         run: |
-          echo "Service deployed to: http://weather-health-${{ github.event.inputs.environment }}-alb-<account-id>.elb.us-east-1.amazonaws.com"
+          echo "Service deployed!"

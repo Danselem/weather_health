@@ -14,6 +14,7 @@ on:
       image_tag:
         description: 'Docker image tag'
         required: true
+        default: 'latest'
 
 jobs:
   terraform:
@@ -38,22 +39,23 @@ jobs:
           terraform_version: 1.7.0
 
       - name: Terraform Init
-        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
-        run: terraform init
+        working-directory: infra-gcp
+        run: terraform init -upgrade
 
       - name: Terraform Plan
-        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
-        run: terraform plan
+        working-directory: infra-gcp
+        run: terraform plan -var-file=environments/${{ github.event.inputs.environment }}/terraform.tfvars
 
       - name: Terraform Apply
         if: github.event.inputs.environment == 'dev'
-        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
-        run: terraform apply -auto-approve
+        working-directory: infra-gcp
+        run: terraform apply -var-file=environments/${{ github.event.inputs.environment }}/terraform.tfvars -auto-approve
 
   deploy-cloudrun:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     needs: terraform
+    if: github.event.inputs.environment == 'dev'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,7 +69,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker
-        run: gcloud auth configure-docker
+        run: gcloud auth configure-docker --quiet
 
       - name: Deploy to Cloud Run
         env:
@@ -75,17 +77,10 @@ jobs:
           ENV: ${{ github.event.inputs.environment }}
           IMAGE_TAG: ${{ github.event.inputs.image_tag }}
         run: |
-          IMAGE="${PROJECT_ID}-${ENV}-docker.pkg.dev/${PROJECT_ID}/weather-health:${IMAGE_TAG}"
-          
           gcloud run deploy "weather-health-${ENV}" \
-            --image "${IMAGE}" \
+            --image "us-central1-docker.pkg.dev/${PROJECT_ID}/weather-health/weather-health:${IMAGE_TAG}" \
             --platform managed \
             --region us-central1 \
             --project "${PROJECT_ID}" \
             --allow-unauthenticated \
-            --min-instances=${{ github.event.inputs.environment == 'prod' && '2' || '0' }} \
-            --max-instances=${{ github.event.inputs.environment == 'prod' && '10' || '5' }}
-
-      - name: Get Service URL
-        run: |
-          echo "Service deployed to: https://weather-health-${{ github.event.inputs.environment }}-xxxxx-uc.a.run.app"
+            --quiet
