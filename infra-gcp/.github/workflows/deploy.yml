@@ -1,0 +1,91 @@
+name: Deploy to GCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      image_tag:
+        description: 'Docker image tag'
+        required: true
+
+jobs:
+  terraform:
+    name: Terraform Infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
+        run: terraform plan
+
+      - name: Terraform Apply
+        if: github.event.inputs.environment == 'dev'
+        working-directory: infra-gcp/environments/${{ github.event.inputs.environment }}
+        run: terraform apply -auto-approve
+
+  deploy-cloudrun:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker
+
+      - name: Deploy to Cloud Run
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          ENV: ${{ github.event.inputs.environment }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          IMAGE="${PROJECT_ID}-${ENV}-docker.pkg.dev/${PROJECT_ID}/weather-health:${IMAGE_TAG}"
+          
+          gcloud run deploy "weather-health-${ENV}" \
+            --image "${IMAGE}" \
+            --platform managed \
+            --region us-central1 \
+            --project "${PROJECT_ID}" \
+            --allow-unauthenticated \
+            --min-instances=${{ github.event.inputs.environment == 'prod' && '2' || '0' }} \
+            --max-instances=${{ github.event.inputs.environment == 'prod' && '10' || '5' }}
+
+      - name: Get Service URL
+        run: |
+          echo "Service deployed to: https://weather-health-${{ github.event.inputs.environment }}-xxxxx-uc.a.run.app"

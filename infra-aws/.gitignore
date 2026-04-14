@@ -1,0 +1,45 @@
+# =============================================================================
+# Terraform Ignore Patterns
+# =============================================================================
+
+# Local state files
+*.tfstate
+*.tfstate.*
+
+# Backup files
+*.backup
+*.backup.*
+
+# Module cache
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Environment-specific files (don't commit actual secrets)
+environments/*/terraform.tfvars
+!environments/*/terraform.tfvars.example
+
+# Credentials
+*.json
+*.key
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,59 @@
+# =============================================================================
+# Gradient Boosting Model Configuration
+# =============================================================================
+# Use with: python train.py model=gradient_boosting
+# =============================================================================
+
+model:
+  name: gradient_boosting
+  description: Gradient Boosting classifier
+
+hyperopt:
+  n_trials: 50
+  timeout: 1200  # 20 minutes max
+
+search_space:
+  n_estimators:
+    type: choice
+    values:
+      - 50
+      - 100
+      - 200
+  learning_rate:
+    type: uniform
+    low: 0.01
+    high: 0.3
+  max_depth:
+    type: choice
+    values:
+      - 3
+      - 5
+      - 7
+      - 10
+  min_samples_split:
+    type: choice
+    values:
+      - 2
+      - 5
+      - 10
+  min_samples_leaf:
+    type: choice
+    values:
+      - 1
+      - 2
+      - 4
+  subsample:
+    type: uniform
+    low: 0.8
+    high: 1.0
+
+sklearn_params:
+  random_state: 1024
+  loss: log_loss
+  validation_fraction: 0.1
+  n_iter_no_change: 10
+  tol: 0.0001
+
+preprocessing:
+  scaler: minmax
+  encoder: label

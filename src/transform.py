@@ -1,35 +1,75 @@
 # preprocess_weather_disease.py
+"""
+Data preprocessing module with Hydra configuration support.
+
+Usage:
+    python transform.py                      # Default config
+    python transform.py env=prod             # Production config
+"""
 
 import pickle
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pandas as pd
-import yaml
+from dotenv import load_dotenv
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig, OmegaConf
 from prefect import flow, task
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 from src import logger
 
+load_dotenv()
+
 
 class WeatherDiseasePreprocessor:
-    def __init__(self, config_path: str):
-        with open(config_path, "r") as f:
-            self.params = yaml.safe_load(f)
+    def __init__(self, config_path: Optional[str] = None):
+        self.config_path = config_path or self._get_config_dir()
+        self.cfg: Optional[DictConfig] = None
 
-        self.input_path = Path(self.params["data"]["interim_data_path"])
-        self.x_train_path = Path(self.params["data"]["x_train_path"])
-        self.y_train_path = Path(self.params["data"]["y_train_path"])
-        self.x_test_path = Path(self.params["data"]["x_test_path"])
-        self.y_test_path = Path(self.params["data"]["y_test_path"])
-        self.scaler_path = Path(self.params["artifacts"]["scaler_path"])
-        self.encoder_path = Path(self.params["artifacts"]["label_encoder_path"])
+        self._load_config()
+        self._init_processors()
 
-        self.scaler = MinMaxScaler()
+    def _get_config_dir(self) -> Path:
+        return Path(__file__).parent.parent / "config"
+
+    def _load_config(self) -> None:
+        config_dir = Path(self.config_path)
+        if not config_dir.is_absolute():
+            config_dir = Path.cwd() / config_dir
+
+        with initialize_config_dir(
+            version_base=None,
+            config_dir=str(config_dir.resolve()),
+        ):
+            self.cfg = compose(config_name="config")
+            OmegaConf.resolve(self.cfg)
+
+        self.data_cfg = OmegaConf.to_container(self.cfg.data, resolve=True)
+        self.artifacts_cfg = OmegaConf.to_container(self.cfg.artifacts, resolve=True)
+        self.data_split_cfg = OmegaConf.to_container(self.cfg.data_split, resolve=True)
+        self.preprocessing_cfg = OmegaConf.to_container(self.cfg.preprocessing, resolve=True)
+
+    def _init_processors(self) -> None:
+        scaler_type = self.preprocessing_cfg.get("scaler_type", "minmax")
+        if scaler_type == "minmax":
+            self.scaler = MinMaxScaler()
+        else:
+            raise ValueError(f"Unsupported scaler type: {scaler_type}")
+
         self.label_encoder = LabelEncoder()
 
-        # Ensure directories exist
+        data_paths = self.data_paths
+        self.input_path = Path(data_paths["interim_data_path"])
+        self.x_train_path = Path(data_paths["x_train_path"])
+        self.y_train_path = Path(data_paths["y_train_path"])
+        self.x_test_path = Path(data_paths["x_test_path"])
+        self.y_test_path = Path(data_paths["y_test_path"])
+        self.scaler_path = Path(self.artifacts_cfg["scaler_path"])
+        self.encoder_path = Path(self.artifacts_cfg["label_encoder_path"])
+
         for path in [
             self.x_train_path,
             self.y_train_path,
@@ -40,6 +80,10 @@ class WeatherDiseasePreprocessor:
         ]:
             path.parent.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def data_paths(self) -> dict:
+        return self.data_cfg
+
     @task(name="load_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def load_data(self) -> pd.DataFrame:
         logger.info(f"Loading data from {self.input_path}")
@@ -47,8 +91,17 @@ class WeatherDiseasePreprocessor:
 
     @task(name="split_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def split_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        logger.info("Splitting data into train and test sets")
-        return train_test_split(data, test_size=0.2, random_state=1024)
+        test_size = self.data_split_cfg.get("test_size", 0.2)
+        random_state = self.data_split_cfg.get("random_state", 1024)
+        stratify = self.data_split_cfg.get("stratify", True)
+
+        logger.info(f"Splitting data (test_size={test_size}, random_state={random_state})")
+        return train_test_split(
+            data,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=data["prognosis"] if stratify else None,
+        )
 
     @task(name="encode_labels", retries=3, retry_delay_seconds=10, log_prints=True)
     def encode_labels(self, y: pd.Series) -> pd.Series:
@@ -69,19 +122,19 @@ class WeatherDiseasePreprocessor:
         return X_train_scaled, X_test_scaled
 
     @task(name="save_as_csv", retries=3, retry_delay_seconds=10, log_prints=True)
-    def save_as_csv(self, df: pd.DataFrame, path: Path):
+    def save_as_csv(self, df: pd.DataFrame, path: Path) -> None:
         logger.info(f"Saving CSV to {path}")
         df.to_csv(path, index=False)
 
     @task(name="save_pickle", retries=3, retry_delay_seconds=10, log_prints=True)
-    def save_pickle(self, obj, path: Path):
+    def save_pickle(self, obj: object, path: Path) -> None:
         logger.info(f"Saving pickle to {path}")
         with open(path, "wb") as f:
             pickle.dump(obj, f)
 
     @task(name="preprocess_data", retries=3, retry_delay_seconds=10, log_prints=True)
-    def preprocess_data(self):
-        logger.info("Starting preprocessing pipeline")
+    def preprocess_data(self) -> None:
+        logger.info(f"Starting preprocessing pipeline (env: {self.cfg.env.env.name})")
 
         data = self.load_data()
         if "uuid" in data.columns:
@@ -98,7 +151,6 @@ class WeatherDiseasePreprocessor:
 
         X_train_scaled, X_test_scaled = self.scale_features(X_train, X_test)
 
-        # Save all outputs using configured paths
         self.save_as_csv(X_train_scaled, self.x_train_path)
         self.save_as_csv(y_train_enc.to_frame(), self.y_train_path)
         self.save_as_csv(X_test_scaled, self.x_test_path)
@@ -110,8 +162,8 @@ class WeatherDiseasePreprocessor:
 
 
 @flow(name="preprocess_data", retries=3, retry_delay_seconds=10, log_prints=True)
-def main():
-    processor = WeatherDiseasePreprocessor(config_path="params.yaml")
+def main(config_path: Optional[str] = None) -> None:
+    processor = WeatherDiseasePreprocessor(config_path=config_path)
     processor.preprocess_data()
 
 

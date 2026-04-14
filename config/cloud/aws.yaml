@@ -1,0 +1,86 @@
+# =============================================================================
+# AWS Cloud Configuration
+# =============================================================================
+# Use with: python train.py cloud=aws
+# =============================================================================
+
+cloud:
+  provider: aws
+  region: ${oc.env:AWS_REGION,us-east-1}
+
+# =============================================================================
+# ECR (Elastic Container Registry)
+# =============================================================================
+ecr:
+  repository_name: weather-health
+  image_tag: latest
+  scan_on_push: true
+
+# =============================================================================
+# ECS Fargate Configuration
+# =============================================================================
+ecs:
+  cluster_name: weather-health-cluster
+  vpc_id: ${oc.env:AWS_VPC_ID,}  # Optional - uses default if not set
+  security_groups:
+    - ${oc.env:AWS_SG_ID,}  # Optional
+  
+  # Service configuration
+  service:
+    name: weather-health-service
+    desired_count: 2
+    task_definition_family: weather-health-task
+  
+  # Task configuration
+  task:
+    family: weather-health-task
+    cpu: 512  # 0.5 vCPU
+    memory: 1024  # 1 GB
+    container_name: weather-health
+    container_port: 8080
+  
+  # Auto-scaling
+  autoscaling:
+    min_capacity: 2
+    max_capacity: 10
+    target_cpu: 70
+    target_memory: 80
+
+# =============================================================================
+# Lambda Configuration
+# =============================================================================
+lambda:
+  function_name: weather-health-predict
+  runtime: python3.10
+  handler: lambda_function.lambda_handler
+  timeout: 30
+  memory_size: 256
+  reserved_concurrency: 10
+
+# =============================================================================
+# S3 Configuration for Artifacts
+# =============================================================================
+s3:
+  artifact_bucket: weather-health-artifacts
+  model_path: models/
+  data_path: data/
+  enable_versioning: true
+  enable_encryption: true
+
+# =============================================================================
+# IAM Roles
+# =============================================================================
+iam:
+  ecs_execution_role: ecsTaskExecutionRole
+  ecs_task_role: weather-health-task-role
+  lambda_execution_role: weather-health-lambda-role
+
+# =============================================================================
+# RDS (Optional - for MLflow tracking)
+# =============================================================================
+rds:
+  enabled: false
+  instance_class: db.t3.micro
+  allocated_storage: 20
+  db_name: weatherhealth
+  port: 5432

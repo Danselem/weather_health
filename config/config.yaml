@@ -1,0 +1,106 @@
+# =============================================================================
+# Base Configuration - Weather Health MLOps Project
+# =============================================================================
+# This is the default configuration. Use Hydra to override with:
+#   python train.py env=prod model=lightgbm
+# =============================================================================
+
+defaults:
+  - env: dev
+  - _self_
+
+# =============================================================================
+# Data Configuration
+# =============================================================================
+data:
+  raw_data_path: data/raw/Weather-related disease prediction.csv
+  interim_data_path: data/interim/weather_disease.parquet
+  x_train_path: data/processed/x_train.csv
+  y_train_path: data/processed/y_train.csv
+  x_test_path: data/processed/x_test.csv
+  y_test_path: data/processed/y_test.csv
+  output_dir: data/processed
+  target_col: prognosis
+
+# =============================================================================
+# Artifact Paths
+# =============================================================================
+artifacts:
+  model_path: models/weather_disease_model.pkl
+  scaler_path: data/processed/minmax_scaler.pkl
+  label_encoder_path: data/processed/label_encoder.pkl
+
+# =============================================================================
+# Model Configuration (default - can be overridden by model config)
+# =============================================================================
+modeling:
+  n_trials: 5
+  model_family: logistic_regression
+  objective_function: Logloss
+  loss_function: F1
+
+# =============================================================================
+# Directory Configuration
+# =============================================================================
+directories:
+  model_dir: models
+  processed_data_dir: data/processed
+  reports_dir: reports
+
+# =============================================================================
+# EDA Configuration
+# =============================================================================
+eda:
+  output_prefix: weather-health-eda
+
+# =============================================================================
+# Report Paths
+# =============================================================================
+reports:
+  model_metrics_path: reports/model_metrics.csv
+  predictions_path: reports/predictions.csv
+  feature_importance_path: reports/feature_importance.png
+  confusion_matrix_path: reports/confusion_matrix.png
+  classification_report_path: reports/classification_report.txt
+  evaluation_metrics_path: reports/evaluation_metrics.csv
+
+# =============================================================================
+# MLflow Configuration
+# =============================================================================
+mlflow:
+  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  experiment_name: weather_health_experiment
+  model_registry: ModelRegistry
+
+# =============================================================================
+# Prefect Configuration
+# =============================================================================
+prefect:
+  work_pool: weather
+  deployment_name: weather-health
+  flow_name: train_model
+
+# =============================================================================
+# Data Split Configuration
+# =============================================================================
+data_split:
+  test_size: 0.2
+  random_state: 1024
+  stratify: true
+
+# =============================================================================
+# Preprocessing Configuration
+# =============================================================================
+preprocessing:
+  scaler_type: minmax
+  encoder_type: label
+  handle_unknown: ignore
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  level: INFO
+  format: "[%(asctime)s: %(levelname)s: %(module)s: %(message)s]"
+  log_dir: logs
+  log_file: running_logs.log

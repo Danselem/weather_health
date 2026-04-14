@@ -1,10 +1,22 @@
 # model_trainer.py
+"""
+Model training module with Hydra configuration support.
 
+Usage:
+    python -m src.train                           # Default: dev + logistic_regression
+    python -m src.train env=prod model=lightgbm  # Production with LightGBM
+    python -m src.train model=random_forest n_trials=10
+"""
+
+import os
+import sys
 from pathlib import Path
+from typing import Any, Dict, Optional, List
 
 import pandas as pd
-import yaml
 from dotenv import load_dotenv
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig, OmegaConf
 from prefect import flow
 
 from src import logger
@@ -19,6 +31,8 @@ from src.utils.mlflow_manager import (
 )
 from src.utils.optimisation import classification_optimization
 
+load_dotenv()
+
 REGISTER_FUNCTIONS = {
     "random_forest": register_random_forest,
     "gradient_boosting": register_gradient_boosting,
@@ -29,34 +43,45 @@ REGISTER_FUNCTIONS = {
 
 
 class ModelTrainer:
-    def __init__(self, config_path: str = "params.yaml"):
-        self.config_path = config_path
-        self.config = None
-        self.modeling_params = None
-        self.data_paths = None
-        self.artifacts = None
-
-        self.x_train = None
-        self.y_train = None
-        self.x_test = None
-        self.y_test = None
+    def __init__(self, config_path: Optional[str] = None, overrides: Optional[list] = None):
+        self.config_path = config_path or self._get_config_dir()
+        self.overrides = overrides or []
+        self.cfg: Optional[DictConfig] = None
+        self.modeling_params: Optional[Dict[str, Any]] = None
+        self.data_paths: Optional[Dict[str, str]] = None
+        self.artifacts: Optional[Dict[str, str]] = None
 
         self._load_config()
         self._load_data()
 
-    def _load_config(self):
-        load_dotenv()
-        with open(self.config_path, encoding="utf-8") as f:
-            self.config = yaml.safe_load(f)
-        self.modeling_params = self.config["modeling"]
-        self.data_paths = self.config["data"]
-        self.artifacts = self.config.get("artifacts", {})
+    def _get_config_dir(self) -> Path:
+        return Path(__file__).parent.parent / "config"
 
-    def _load_data(self):
-        self.x_train = pd.read_csv(Path(self.data_paths["x_train_path"]))
-        self.y_train = pd.read_csv(Path(self.data_paths["y_train_path"])).values.ravel()
-        self.x_test = pd.read_csv(Path(self.data_paths["x_test_path"]))
-        self.y_test = pd.read_csv(Path(self.data_paths["y_test_path"])).values.ravel()
+    def _load_config(self) -> None:
+        config_dir = Path(self.config_path)
+        if not config_dir.is_absolute():
+            config_dir = Path.cwd() / config_dir
+
+        with initialize_config_dir(
+            version_base=None,
+            config_dir=str(config_dir.resolve()),
+        ):
+            self.cfg = compose(config_name="config", overrides=self.overrides)
+            OmegaConf.resolve(self.cfg)
+
+        self.modeling_params = self.cfg.modeling
+        self.data_paths = OmegaConf.to_container(self.cfg.data, resolve=True)
+        self.artifacts = OmegaConf.to_container(self.cfg.artifacts, resolve=True)
+
+        logger.info(f"Loaded config for environment: {self.cfg.env.env.name}")
+        logger.info(f"Model: {self.modeling_params.model_family}")
+
+    def _load_data(self) -> None:
+        data_paths = self.data_paths
+        self.x_train = pd.read_csv(Path(data_paths["x_train_path"]))
+        self.y_train = pd.read_csv(Path(data_paths["y_train_path"])).values.ravel()
+        self.x_test = pd.read_csv(Path(data_paths["x_test_path"]))
+        self.y_test = pd.read_csv(Path(data_paths["y_test_path"])).values.ravel()
         logger.info("Training and test data loaded successfully.")
 
     def _get_register_function(self, model_family: str):
@@ -68,16 +93,17 @@ class ModelTrainer:
         return REGISTER_FUNCTIONS[model_family]
 
     @flow(name="train_model", retries=3, retry_delay_seconds=10, log_prints=True)
-    def run(self):
-        model_family = self.modeling_params["model_family"]
-        loss_function = self.modeling_params["loss_function"]
-        n_trials = self.modeling_params["n_trials"]
+    def run(self) -> None:
+        model_family = self.modeling_params.model_family
+        loss_function = self.modeling_params.loss_function
+        n_trials = self.modeling_params.n_trials
 
         logger.info(f"Model Family: {model_family}")
         logger.info(f"Loss Function: {loss_function}")
+        logger.info(f"Environment: {self.cfg.env.env.name}")
+
         create_mlflow_experiment(f"{model_family}_experiment")
 
-        # Optimization
         best_params = classification_optimization(
             x_train=self.x_train,
             y_train=self.y_train,
@@ -87,7 +113,6 @@ class ModelTrainer:
             diagnostic=True,
         )
 
-        # Model registration
         register_func = self._get_register_function(model_family)
         register_func(
             x_train=self.x_train,
@@ -100,9 +125,18 @@ class ModelTrainer:
         register_best_model(model_family=model_family, loss_function=loss_function)
         logger.info("Training pipeline completed successfully.")
 
+    def get_model_config(self) -> DictConfig:
+        return self.cfg.model
 
-# Optional entry point
-if __name__ == "__main__":
-    params_file = "params.yaml"
-    trainer = ModelTrainer(params_file)
+
+def main(config_path: Optional[str] = None, overrides: Optional[list] = None) -> None:
+    # If no overrides passed, try to parse from command line arguments
+    if overrides is None:
+        overrides = [arg for arg in sys.argv[1:] if arg.startswith(('model=', 'env=', 'n_trials=', 'loss_function=', 'modeling.'))]
+    
+    trainer = ModelTrainer(config_path=config_path, overrides=overrides)
     trainer.run()
+
+
+if __name__ == "__main__":
+    main()

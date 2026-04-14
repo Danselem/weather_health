@@ -1,0 +1,94 @@
+# =============================================================================
+# MLflow Configuration
+# =============================================================================
+
+# =============================================================================
+# Tracking Server
+# =============================================================================
+tracking:
+  # URI - can be overridden by env var MLFLOW_TRACKING_URI
+  uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  
+  # Experiment
+  experiment:
+    name: weather_health_experiment
+    tags:
+      project: weather-health
+      version: 1.0.0
+  
+  # Backend store
+  backend_store:
+    type: sqlbackend
+    uri: sqlite:///mlflow.db
+  
+  # Artifacts
+  artifact_location: s3://weather-health-artifacts/mlflow
+  
+  # UI
+  ui:
+    port: 5000
+    host: 0.0.0.0
+
+# =============================================================================
+# Model Registry
+# =============================================================================
+registry:
+  # Model registry URI (same as tracking)
+  uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  
+  # Model stages
+  stages:
+    - None
+    - Staging
+    - Production
+    - Archived
+  
+  # Default stage for new models
+  default_stage: Staging
+
+# =============================================================================
+# Experiments (additional)
+# =============================================================================
+experiments:
+  - name: weather_health_dev
+    tags:
+      environment: dev
+  - name: weather_health_staging
+    tags:
+      environment: staging
+  - name: weather_health_prod
+    tags:
+      environment: prod
+
+# =============================================================================
+# DagsHub Integration
+# =============================================================================
+dagshub:
+  enabled: true
+  repo_owner: ${oc.env:DAGSHUB_REPO_OWNER,Danselem}
+  repo_name: ${oc.env:DAGSHUB_REPO_NAME,weather_health}
+  token: ${oc.env:DAGSHUB_TOKEN,}
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  # Metrics to log
+  log_metrics: true
+  log_params: true
+  log_artifacts: true
+  
+  # What to log
+  log:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - roc_auc
+    - confusion_matrix
+    - feature_importance
+  
+  # Retention
+  retention:
+    days: 30
+    keep_stages: 3

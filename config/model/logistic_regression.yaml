@@ -1,0 +1,47 @@
+# =============================================================================
+# Logistic Regression Model Configuration
+# =============================================================================
+# Use with: python train.py model=logistic_regression
+# =============================================================================
+
+model:
+  name: logistic_regression
+  description: Logistic Regression classifier with L2 regularization
+
+hyperopt:
+  n_trials: 50
+  timeout: 600  # 10 minutes max
+
+search_space:
+  C:
+    type: loguniform
+    low: 0.01
+    high: 10.0
+  solver:
+    type: choice
+    values:
+      - lbfgs
+      - liblinear
+      - saga
+  max_iter:
+    type: choice
+    values:
+      - 500
+      - 1000
+      - 2000
+  class_weight:
+    type: choice
+    values:
+      - null
+      - balanced
+
+sklearn_params:
+  random_state: 1024
+  penalty: l2
+  dual: false
+  tol: 0.0001
+
+# Preprocessing handled globally
+preprocessing:
+  scaler: minmax
+  encoder: label

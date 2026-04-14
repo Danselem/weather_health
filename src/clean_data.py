@@ -1,14 +1,18 @@
-"""DataCleaner class for preprocessing a weather-related disease dataset."""
+"""DataCleaner class for preprocessing a weather-related disease dataset with Hydra config."""
 
 import uuid
 from pathlib import Path
 from typing import List, Optional, Union
 
 import pandas as pd
-import yaml
+from dotenv import load_dotenv
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig, OmegaConf
 from prefect import flow, task
 
 from src import logger
+
+load_dotenv()
 
 
 class DataCleaner:
@@ -29,18 +33,43 @@ class DataCleaner:
     """
 
     def __init__(
-        self, input_path: Union[str, Path], output_path: Union[str, Path]
+        self,
+        input_path: Optional[Union[str, Path]] = None,
+        output_path: Optional[Union[str, Path]] = None,
+        config_path: Optional[str] = None,
     ) -> None:
         """
-        Initialize the DataCleaner with input and output file paths.
+        Initialize the DataCleaner with Hydra configuration.
 
         Args:
-            input_path (Union[str, Path]): File path to the input CSV.
-            output_path (Union[str, Path]): File path to save the cleaned Parquet data.
+            input_path: File path to the input CSV (optional - uses config if not set).
+            output_path: File path to save the cleaned Parquet data (optional - uses config).
+            config_path: Path to Hydra config directory (optional).
         """
-        self.input_path: Path = Path(input_path)
-        self.output_path: Path = Path(output_path)
+        self._load_config(config_path)
+        
+        data_cfg = OmegaConf.to_container(self.cfg.data, resolve=True)
+        
+        self.input_path: Path = Path(input_path) if input_path else Path(data_cfg["raw_data_path"])
+        self.output_path: Path = Path(output_path) if output_path else Path(data_cfg["interim_data_path"])
         self.data: Optional[pd.DataFrame] = None
+        
+        logger.info(f"DataCleaner initialized for environment: {self.cfg.env.env.name}")
+
+    def _load_config(self, config_path: Optional[str]) -> None:
+        config_dir = Path(config_path) if config_path else self._get_config_dir()
+        if not config_dir.is_absolute():
+            config_dir = Path.cwd() / config_dir
+
+        with initialize_config_dir(
+            version_base=None,
+            config_dir=str(config_dir.resolve()),
+        ):
+            self.cfg = compose(config_name="config")
+            OmegaConf.resolve(self.cfg)
+
+    def _get_config_dir(self) -> Path:
+        return Path(__file__).parent.parent / "config"
 
     @task(name="load_data", retries=3, retry_delay_seconds=10, log_prints=True)
     def load_data(self) -> None:
@@ -125,6 +154,7 @@ class DataCleaner:
         - Clean data
         - Save cleaned data
         """
+        logger.info(f"Starting data cleaning pipeline (env: {self.cfg.env.env.name})")
         self.load_data()
         self.add_uuid_column(exclude_cols=["prognosis"])
         self.clean_data()
@@ -132,12 +162,5 @@ class DataCleaner:
 
 
 if __name__ == "__main__":
-    params_path = Path("params.yaml")
-    with open(params_path, "r") as f:
-        params = yaml.safe_load(f)
-
-    data_path = params["data"]["raw_data_path"]
-    output_path = params["data"]["interim_data_path"]
-
-    cleaner = DataCleaner(input_path=data_path, output_path=output_path)
+    cleaner = DataCleaner()
     cleaner.run()

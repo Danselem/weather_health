@@ -1,0 +1,33 @@
+# Git
+.git/
+
+# Python cached
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Local data & models (copy from local instead)
+data/raw/
+data/interim/
+
+# Docs & git
+README.md
+docs/
+.dvc/
+
+# Terraform (build separately)
+infra-*/
+*.tf
+*.tfvars
+.github/

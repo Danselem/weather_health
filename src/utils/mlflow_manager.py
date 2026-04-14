@@ -68,6 +68,10 @@ def create_mlflow_experiment(experiment_name: str) -> None:
     if experiment is None:
         mlflow.create_experiment(experiment_name)
         logger.info(f"Created experiment: {experiment_name}")
+    elif experiment.lifecycle_stage == "deleted":
+        client = MlflowClient()
+        client.restore_experiment(experiment.experiment_id)
+        logger.info(f"Restored deleted experiment: {experiment_name}")
     else:
         logger.info(f"Experiment already exists: {experiment_name}")
     mlflow.set_experiment(experiment_name)

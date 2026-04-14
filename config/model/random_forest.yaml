@@ -1,0 +1,64 @@
+# =============================================================================
+# Random Forest Model Configuration
+# =============================================================================
+# Use with: python train.py model=random_forest
+# =============================================================================
+
+model:
+  name: random_forest
+  description: Random Forest ensemble classifier
+
+hyperopt:
+  n_trials: 50
+  timeout: 900  # 15 minutes max
+
+search_space:
+  n_estimators:
+    type: choice
+    values:
+      - 50
+      - 100
+      - 200
+      - 300
+  max_depth:
+    type: choice
+    values:
+      - 5
+      - 10
+      - 15
+      - 20
+      - null
+  min_samples_split:
+    type: choice
+    values:
+      - 2
+      - 5
+      - 10
+  min_samples_leaf:
+    type: choice
+    values:
+      - 1
+      - 2
+      - 4
+  max_features:
+    type: choice
+    values:
+      - sqrt
+      - log2
+      - null
+  class_weight:
+    type: choice
+    values:
+      - null
+      - balanced
+      - balanced_subsample
+
+sklearn_params:
+  random_state: 1024
+  bootstrap: true
+  oob_score: false
+  n_jobs: -1
+
+preprocessing:
+  scaler: minmax
+  encoder: label

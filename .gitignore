@@ -188,7 +188,12 @@ cython_debug/
 logs
 tff
 
-# Ignore Terraform local files inside infra folder
+# DVC (Data Version Control)
+.dvc/
+.dvcignore
+*.dvc
+
+# Terraform local files inside infra folder
 infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.*

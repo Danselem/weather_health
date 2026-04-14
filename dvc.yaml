@@ -1,31 +1,72 @@
+# =============================================================================
+# DVC Pipeline Configuration
+# =============================================================================
+# Data Version Control pipeline for reproducible ML workflows.
+# Run with: make dvc  or  dvc repro
+# =============================================================================
+
 stages:
-  data_split:
-    cmd: uv run -m src.data_split
+  clean:
+    cmd: uv run -m src.clean_data
     deps:
-    - src/data_split.py
-    - data/raw/
-    outs:
-    - data/interim/heart_train.parquet
-    - data/interim/heart_test.parquet
-
-  data_cleaning:
-    cmd: uv run -m src.data_cleaning
-    deps:
-    - src/data_cleaning.py
-    - data/interim/heart_train.parquet
-    - data/interim/heart_test.parquet
-    outs:
-    - data/processed/heart_train_cleaned.parquet
-
-  modeling:
-    cmd: uv run -m src.modeling
-    deps:
-    - src/modeling.py
-    - data/processed/heart_train_cleaned.parquet
+      - src/clean_data.py
+      - data/raw/Weather-related disease prediction.csv
     params:
-    - modeling
-
-  save_model:
-	  cmd: uv run -m src.gather_mlflow_model
+      - data.raw_data_path
+      - data.interim_data_path
     outs:
-    - model.pkl
+      - data/interim/weather_disease.parquet
+    metrics:
+      - reports/eda_outputs/weather-health-eda_statistics.csv:
+          cache: false
+
+  transform:
+    cmd: uv run -m src.transform
+    deps:
+      - src/transform.py
+      - data/interim/weather_disease.parquet
+    params:
+      - data
+      - artifacts.scaler_path
+      - artifacts.label_encoder_path
+    outs:
+      - data/processed/x_train.csv
+      - data/processed/y_train.csv
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+      - data/processed/minmax_scaler.pkl
+      - data/processed/label_encoder.pkl
+
+  train:
+    cmd: uv run -m src.train
+    deps:
+      - src/train.py
+      - src/utils/mlflow_manager.py
+      - data/processed/x_train.csv
+      - data/processed/y_train.csv
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+    params:
+      - modeling
+    outs:
+      - models/weather_disease_model.pkl
+    metrics:
+      - reports/model_metrics.csv:
+          cache: false
+      - reports/classification_report.csv:
+          cache: false
+
+  evaluate:
+    cmd: uv run -m src.evaluate
+    deps:
+      - src/evaluate.py
+      - models/weather_disease_model.pkl
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+    outs:
+      - reports/predictions.csv
+      - reports/confusion_matrix.png
+      - reports/feature_importance.png
+    metrics:
+      - reports/evaluation_metrics.csv:
+          cache: false
