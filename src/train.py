@@ -8,10 +8,9 @@ Usage:
     python -m src.train model=random_forest n_trials=10
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -43,13 +42,13 @@ REGISTER_FUNCTIONS = {
 
 
 class ModelTrainer:
-    def __init__(self, config_path: Optional[str] = None, overrides: Optional[list] = None):
+    def __init__(self, config_path: str | None = None, overrides: list | None = None):
         self.config_path = config_path or self._get_config_dir()
         self.overrides = overrides or []
-        self.cfg: Optional[DictConfig] = None
-        self.modeling_params: Optional[Dict[str, Any]] = None
-        self.data_paths: Optional[Dict[str, str]] = None
-        self.artifacts: Optional[Dict[str, str]] = None
+        self.cfg: DictConfig | None = None
+        self.modeling_params: dict[str, Any] | None = None
+        self.data_paths: dict[str, str] | None = None
+        self.artifacts: dict[str, str] | None = None
 
         self._load_config()
         self._load_data()
@@ -129,11 +128,11 @@ class ModelTrainer:
         return self.cfg.model
 
 
-def main(config_path: Optional[str] = None, overrides: Optional[list] = None) -> None:
+def main(config_path: str | None = None, overrides: list | None = None) -> None:
     # If no overrides passed, try to parse from command line arguments
     if overrides is None:
         overrides = [arg for arg in sys.argv[1:] if arg.startswith(('model=', 'env=', 'n_trials=', 'loss_function=', 'modeling.'))]
-    
+
     trainer = ModelTrainer(config_path=config_path, overrides=overrides)
     trainer.run()
 

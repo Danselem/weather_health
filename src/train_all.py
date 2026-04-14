@@ -7,10 +7,9 @@ Usage:
     python -m src.train_all env=prod
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -42,12 +41,12 @@ MODEL_FAMILIES = ["lightgbm", "random_forest", "gradient_boosting", "logistic_re
 
 
 class MultiModelTrainer:
-    def __init__(self, config_path: Optional[str] = None, overrides: Optional[list] = None):
+    def __init__(self, config_path: str | None = None, overrides: list | None = None):
         self.config_path = config_path or self._get_config_dir()
         self.overrides = overrides or []
-        self.cfg: Optional[DictConfig] = None
-        self.modeling_params: Optional[Dict[str, Any]] = None
-        self.data_paths: Optional[Dict[str, str]] = None
+        self.cfg: DictConfig | None = None
+        self.modeling_params: dict[str, Any] | None = None
+        self.data_paths: dict[str, str] | None = None
 
         self._load_config()
         self._load_data()
@@ -83,7 +82,7 @@ class MultiModelTrainer:
         self.y_test = pd.read_csv(Path(data_paths["y_test_path"])).values.ravel()
         logger.info("Training and test data loaded successfully.")
 
-    def _train_single_model(self, model_family: str) -> Dict[str, Any]:
+    def _train_single_model(self, model_family: str) -> dict[str, Any]:
         loss_function = self.modeling_params.loss_function
         n_trials = self.modeling_params.n_trials
 
@@ -116,8 +115,6 @@ class MultiModelTrainer:
     @flow(name="train_all_models", retries=3, retry_delay_seconds=10, log_prints=True)
     def run(self) -> None:
         env_name = self.cfg.env.env.name
-        loss_function = self.modeling_params.loss_function
-
         logger.info(f"Multi-model training for environment: {env_name}")
         logger.info(f"Training {len(MODEL_FAMILIES)} models: {MODEL_FAMILIES}")
 
@@ -135,10 +132,14 @@ class MultiModelTrainer:
         logger.info("Multi-model training pipeline completed successfully.")
 
 
-def main(config_path: Optional[str] = None, overrides: Optional[list] = None) -> None:
+def main(config_path: str | None = None, overrides: list | None = None) -> None:
     if overrides is None:
-        overrides = [arg for arg in sys.argv[1:] if arg.startswith(('model=', 'env=', 'n_trials=', 'loss_function=', 'modeling.'))]
-    
+        overrides = [
+            arg
+            for arg in sys.argv[1:]
+            if arg.startswith(("model=", "env=", "n_trials=", "loss_function=", "modeling."))
+        ]
+
     trainer = MultiModelTrainer(config_path=config_path, overrides=overrides)
     trainer.run()
 

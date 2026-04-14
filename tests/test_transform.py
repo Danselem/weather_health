@@ -2,7 +2,6 @@
 
 import pickle
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -43,7 +42,7 @@ class TestWeatherDiseasePreprocessor:
             },
         }
 
-    def test_init(self, temp_config):
+    def test_init(self, temp_config, test_data_dir):
         """Test preprocessor initialization."""
         from src.transform import WeatherDiseasePreprocessor
 
@@ -57,7 +56,7 @@ class TestWeatherDiseasePreprocessor:
         assert processor.scaler is not None
         assert processor.label_encoder is not None
 
-    def test_load_data(self, temp_config):
+    def test_load_data(self, temp_config, test_data_dir):
         """Test loading data from parquet."""
         from src.transform import WeatherDiseasePreprocessor
 
@@ -76,11 +75,7 @@ class TestWeatherDiseasePreprocessor:
         """Test splitting data into train and test."""
         from src.transform import WeatherDiseasePreprocessor
 
-        config_path = test_data_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(temp_config, f)
-
-        processor = WeatherDiseasePreprocessor(config_path=str(config_path))
+        processor = WeatherDiseasePreprocessor()
         df = pd.DataFrame(
             {
                 "feature1": [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -98,11 +93,7 @@ class TestWeatherDiseasePreprocessor:
         """Test encoding target labels."""
         from src.transform import WeatherDiseasePreprocessor
 
-        config_path = test_data_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(temp_config, f)
-
-        processor = WeatherDiseasePreprocessor(config_path=str(config_path))
+        processor = WeatherDiseasePreprocessor()
         y = pd.Series(["Flu", "Malaria", "Dengue", "Flu", "Malaria"], name="prognosis")
 
         encoded = processor.encode_labels(y)
@@ -114,11 +105,7 @@ class TestWeatherDiseasePreprocessor:
         """Test scaling features with MinMaxScaler."""
         from src.transform import WeatherDiseasePreprocessor
 
-        config_path = test_data_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(temp_config, f)
-
-        processor = WeatherDiseasePreprocessor(config_path=str(config_path))
+        processor = WeatherDiseasePreprocessor()
 
         X_train = pd.DataFrame({"feature1": [1.0, 2.0, 3.0], "feature2": [0.5, 1.5, 2.5]})
         X_test = pd.DataFrame({"feature1": [1.5], "feature2": [1.0]})
@@ -128,15 +115,11 @@ class TestWeatherDiseasePreprocessor:
         assert X_train_scaled.min().min() >= 0.0
         assert X_train_scaled.max().max() <= 1.0
 
-    def test_save_as_csv(self, temp_config):
+    def test_save_as_csv(self, temp_config, test_data_dir):
         """Test saving DataFrame to CSV."""
         from src.transform import WeatherDiseasePreprocessor
 
-        config_path = test_data_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(temp_config, f)
-
-        processor = WeatherDiseasePreprocessor(config_path=str(config_path))
+        processor = WeatherDiseasePreprocessor()
 
         df = pd.DataFrame({"col1": [1, 2, 3], "col2": [4, 5, 6]})
         csv_path = test_data_dir / "test_output.csv"
@@ -147,15 +130,11 @@ class TestWeatherDiseasePreprocessor:
         loaded = pd.read_csv(csv_path)
         assert len(loaded) == 3
 
-    def test_save_pickle(self, temp_config):
+    def test_save_pickle(self, temp_config, test_data_dir):
         """Test saving object to pickle file."""
         from src.transform import WeatherDiseasePreprocessor
 
-        config_path = test_data_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(temp_config, f)
-
-        processor = WeatherDiseasePreprocessor(config_path=str(config_path))
+        processor = WeatherDiseasePreprocessor()
 
         obj = {"key": "value", "list": [1, 2, 3]}
         pickle_path = test_data_dir / "test.pkl"
@@ -166,5 +145,3 @@ class TestWeatherDiseasePreprocessor:
         with open(pickle_path, "rb") as f:
             loaded = pickle.load(f)
         assert loaded == obj
-
-

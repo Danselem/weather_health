@@ -9,7 +9,6 @@ Usage:
 
 import pickle
 from pathlib import Path
-from typing import Optional, Tuple
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -25,9 +24,9 @@ load_dotenv()
 
 
 class WeatherDiseasePreprocessor:
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         self.config_path = config_path or self._get_config_dir()
-        self.cfg: Optional[DictConfig] = None
+        self.cfg: DictConfig | None = None
 
         self._load_config()
         self._init_processors()
@@ -90,7 +89,7 @@ class WeatherDiseasePreprocessor:
         return pd.read_parquet(self.input_path)
 
     @task(name="split_data", retries=3, retry_delay_seconds=10, log_prints=True)
-    def split_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def split_data(self, data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         test_size = self.data_split_cfg.get("test_size", 0.2)
         random_state = self.data_split_cfg.get("random_state", 1024)
         stratify = self.data_split_cfg.get("stratify", True)
@@ -111,7 +110,7 @@ class WeatherDiseasePreprocessor:
     @task(name="scale_features", retries=3, retry_delay_seconds=10, log_prints=True)
     def scale_features(
         self, X_train: pd.DataFrame, X_test: pd.DataFrame
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         logger.info("Scaling features using MinMaxScaler")
         X_train_scaled = pd.DataFrame(
             self.scaler.fit_transform(X_train), columns=X_train.columns
@@ -162,7 +161,7 @@ class WeatherDiseasePreprocessor:
 
 
 @flow(name="preprocess_data", retries=3, retry_delay_seconds=10, log_prints=True)
-def main(config_path: Optional[str] = None) -> None:
+def main(config_path: str | None = None) -> None:
     processor = WeatherDiseasePreprocessor(config_path=config_path)
     processor.preprocess_data()
 

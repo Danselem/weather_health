@@ -58,7 +58,7 @@ class EDAReport:
         missing_nonzero = missing[missing > 0]
         if not missing_nonzero.empty:
             miss_df = pd.DataFrame(
-                (missing_nonzero * 100 / self.data.shape[0])
+                missing_nonzero * 100 / self.data.shape[0]
             ).reset_index()
             miss_df.columns = ["Column", "Percentage"]
             miss_df["type"] = self.output_prefix
@@ -210,7 +210,7 @@ class EDAReport:
 
 def main():
     params_path = Path("params.yaml")
-    with open(params_path, "r") as f:
+    with open(params_path) as f:
         params = yaml.safe_load(f)
 
     data_path = params["data"]["raw_data_path"]

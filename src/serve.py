@@ -8,7 +8,7 @@ def load_sample_and_predict():
     """Load sample JSON data and send it to the model API for prediction."""
     # Load the sample JSON file
     sample_path = Path("sample_input.json")
-    with open(sample_path, "r", encoding="utf-8") as file:
+    with open(sample_path, encoding="utf-8") as file:
         sample_data = json.load(file)
         # print(sample_data)
 

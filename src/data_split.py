@@ -2,7 +2,6 @@
 testing sets using a class-based design."""
 
 from pathlib import Path
-from typing import Tuple, Union
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -25,15 +24,9 @@ class DataSplitter:
 
     def __init__(
         self,
-        raw_data_path: Union[
-            str, Path
-        ] = "project1/data/interim/weather_disease.parquet",
-        train_output_path: Union[
-            str, Path
-        ] = "project1/data/interim/weather_disease_train.parquet",
-        test_output_path: Union[
-            str, Path
-        ] = "project1/data/interim/weather_disease_test.parquet",
+        raw_data_path: str | Path = "project1/data/interim/weather_disease.parquet",
+        train_output_path: str | Path = "project1/data/interim/weather_disease_train.parquet",
+        test_output_path: str | Path = "project1/data/interim/weather_disease_test.parquet",
         test_size: float = 0.2,
         random_state: int = 1024,
     ) -> None:
@@ -65,7 +58,7 @@ class DataSplitter:
         logger.info(f"Dataset loaded successfully with shape {data.shape}")
         return data
 
-    def split_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def split_data(self, data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Split the dataset into training and testing sets.
 

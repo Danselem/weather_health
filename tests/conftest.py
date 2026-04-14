@@ -1,6 +1,5 @@
 """Pytest configuration and shared fixtures for weather-health project."""
 
-import os
 import sys
 from pathlib import Path
 

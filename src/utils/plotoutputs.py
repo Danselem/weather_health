@@ -7,7 +7,6 @@ restored via the fitted LabelEncoder.
 
 import pickle
 from pathlib import Path
-from typing import Union
 
 import matplotlib.pyplot as plt
 import yaml
@@ -20,7 +19,7 @@ params = yaml.safe_load(params_file.read_text())
 label_encoder_path = params["artifacts"]["label_encoder_path"]
 
 
-def load_label_encoder(path: Union[str, Path]) -> LabelEncoder:
+def load_label_encoder(path: str | Path) -> LabelEncoder:
     """Load the pickled LabelEncoder created during preprocessing."""
     with open(path, "rb") as f:
         return pickle.load(f)
@@ -30,7 +29,7 @@ def plot_confusion_matrix(
     y_true: ArrayLike,
     y_pred: ArrayLike,
     split: str,
-    label_encoder_path: Union[str, Path] = label_encoder_path,
+    label_encoder_path: str | Path = label_encoder_path,
 ) -> None:
     """
     Plot and save a confusion matrix with human‑readable class names.

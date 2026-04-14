@@ -80,9 +80,7 @@ class WeatherDiseaseEvaluator:
             "recall": recall_score(
                 y_true_decoded, y_pred_decoded, average="macro", zero_division=0
             ),
-            "f1_score": f1_score(
-                y_true_decoded, y_pred_decoded, average="macro", zero_division=0
-            ),
+            "f1_score": f1_score(y_true_decoded, y_pred_decoded, average="macro", zero_division=0),
         }
 
         # Save metrics
@@ -177,15 +175,12 @@ class WeatherDiseaseEvaluator:
 def main():
     try:
         params_path = Path("params.yaml")
-        with open(params_path, "r") as f:
+        with open(params_path) as f:
             params = yaml.safe_load(f)
 
-        model_path = params["artifacts"]["model_path"]
-        scaler_path = params["artifacts"]["scaler_path"]
         x_test_path = params["data"]["x_test_path"]
         y_test_path = params["data"]["y_test_path"]
         label_encoder_path = params["artifacts"]["label_encoder_path"]
-        model_metrics_path = params["reports"]["model_metrics_path"]
         predictions_path = params["reports"]["predictions_path"]
         feature_importance_path = params["reports"]["feature_importance_path"]
         confusion_matrix_path = params["reports"]["confusion_matrix_path"]

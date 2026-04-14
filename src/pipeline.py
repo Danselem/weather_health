@@ -7,7 +7,6 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -25,14 +24,14 @@ load_dotenv()
 class Pipeline:
     """Main ML pipeline orchestrator using Hydra configuration."""
 
-    def __init__(self, config_path: Optional[str] = None):
-        self.cfg: Optional[DictConfig] = None
+    def __init__(self, config_path: str | None = None):
+        self.cfg: DictConfig | None = None
         self._load_config(config_path)
 
     def _get_config_dir(self) -> Path:
         return Path(__file__).parent.parent / "config"
 
-    def _load_config(self, config_path: Optional[str]) -> None:
+    def _load_config(self, config_path: str | None) -> None:
         config_dir = Path(config_path) if config_path else self._get_config_dir()
         if not config_dir.is_absolute():
             config_dir = Path.cwd() / config_dir
@@ -72,7 +71,7 @@ class Pipeline:
         print("\n=== Pipeline Complete ===")
 
 
-def main(config_path: Optional[str] = None) -> None:
+def main(config_path: str | None = None) -> None:
     pipeline = Pipeline(config_path=config_path)
     pipeline.run()
 

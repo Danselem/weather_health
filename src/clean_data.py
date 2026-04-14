@@ -2,12 +2,11 @@
 
 import uuid
 from pathlib import Path
-from typing import List, Optional, Union
 
 import pandas as pd
 from dotenv import load_dotenv
 from hydra import compose, initialize_config_dir
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from prefect import flow, task
 
 from src import logger
@@ -34,9 +33,9 @@ class DataCleaner:
 
     def __init__(
         self,
-        input_path: Optional[Union[str, Path]] = None,
-        output_path: Optional[Union[str, Path]] = None,
-        config_path: Optional[str] = None,
+        input_path: str | Path | None = None,
+        output_path: str | Path | None = None,
+        config_path: str | None = None,
     ) -> None:
         """
         Initialize the DataCleaner with Hydra configuration.
@@ -47,16 +46,16 @@ class DataCleaner:
             config_path: Path to Hydra config directory (optional).
         """
         self._load_config(config_path)
-        
+
         data_cfg = OmegaConf.to_container(self.cfg.data, resolve=True)
-        
+
         self.input_path: Path = Path(input_path) if input_path else Path(data_cfg["raw_data_path"])
         self.output_path: Path = Path(output_path) if output_path else Path(data_cfg["interim_data_path"])
-        self.data: Optional[pd.DataFrame] = None
-        
+        self.data: pd.DataFrame | None = None
+
         logger.info(f"DataCleaner initialized for environment: {self.cfg.env.env.name}")
 
-    def _load_config(self, config_path: Optional[str]) -> None:
+    def _load_config(self, config_path: str | None) -> None:
         config_dir = Path(config_path) if config_path else self._get_config_dir()
         if not config_dir.is_absolute():
             config_dir = Path.cwd() / config_dir
@@ -80,7 +79,7 @@ class DataCleaner:
     @task(name="add_uuid_column", retries=3, retry_delay_seconds=10, log_prints=True)
     def add_uuid_column(
         self,
-        exclude_cols: Optional[List[str]] = None,
+        exclude_cols: list[str] | None = None,
         namespace: uuid.UUID = uuid.NAMESPACE_DNS,
     ) -> None:
         """
@@ -119,7 +118,7 @@ class DataCleaner:
 
         logger.info("Original data shape: %s", self.data.shape)
 
-        cols_to_drop: List[str] = [
+        cols_to_drop: list[str] = [
             "shivering",
             "asthma_history",
             "high_cholesterol",
