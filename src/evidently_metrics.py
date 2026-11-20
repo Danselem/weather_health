@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -13,7 +14,10 @@ from evidently.presets import DataDriftPreset
 from prefect import flow, task
 
 from src import prediction_store
+from src.alerts import send_alert
 from src.config import load_config
+from src.performance_monitor import compute_performance
+from src.retrain_trigger import trigger_retrain
 
 
 def _load_current(
@@ -136,6 +140,7 @@ def monitoring_flow(
     current_path: str | None = None,
     limit: int = 5000,
     fail_on_drift: bool = False,
+    trigger_retrain_on_failure: bool = False,
 ) -> dict[str, Any]:
     cfg = load_config("config")
     reference_path = Path(cfg.artifacts.reference_path)
@@ -149,6 +154,20 @@ def monitoring_flow(
     current = _load_current(reference_columns, current_path, limit)
     metrics = run_evidently(reference, current, cfg.monitoring.reports_dir)
 
+    if metrics["failed_tests"]:
+        send_alert(metrics)
+        streak = prediction_store.failed_streak()
+        metrics["failed_streak"] = streak
+        threshold = int(os.getenv("RETRAIN_FAILURE_THRESHOLD", "2"))
+        if trigger_retrain_on_failure and streak >= threshold:
+            metrics["retrain"] = trigger_retrain(
+                reason=f"{streak} consecutive failed monitoring windows", metrics=metrics
+            )
+
+    performance = compute_performance()
+    if performance is not None:
+        metrics["performance"] = performance
+
     if fail_on_drift and metrics["failed_tests"]:
         raise SystemExit(f"Drift gate failed: {metrics['failed_tests']} test(s)")
     return cast(dict[str, Any], metrics)
@@ -159,11 +178,13 @@ def main() -> None:
     parser.add_argument("--current-path", default=None)
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--fail-on-drift", action="store_true")
+    parser.add_argument("--trigger-retrain", action="store_true")
     args = parser.parse_args()
     monitoring_flow(
         current_path=args.current_path,
         limit=args.limit,
         fail_on_drift=args.fail_on_drift,
+        trigger_retrain_on_failure=args.trigger_retrain,
     )
 
 

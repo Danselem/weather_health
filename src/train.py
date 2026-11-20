@@ -149,6 +149,7 @@ class ModelTrainer:
         return self.cfg.model
 
 
+@flow(name="train_pipeline")
 def main(config_path: str | None = None, overrides: list | None = None) -> None:
     # If no overrides passed, try to parse from command line arguments
     if overrides is None:

@@ -151,8 +151,8 @@ stages:
       size: 2524
     - path: src/train.py
       hash: md5
-      md5: 2127e09314c548c96dbec7b8d768b406
-      size: 5914
+      md5: f85f6c387cac2019b9b51ebd4bf6fb45
+      size: 5943
     - path: src/utils/mlflow_manager.py
       hash: md5
       md5: 1684e3e34478fc66d69c38dfe98687dd

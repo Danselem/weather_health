@@ -1,0 +1,59 @@
+name: Retrain
+
+on:
+  repository_dispatch:
+    types: [retrain]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retrain
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    name: Train, Evaluate, Register Champion
+    runs-on: ubuntu-latest
+    env:
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      DAGSHUB_REPO_OWNER: ${{ secrets.DAGSHUB_USER }}
+      DAGSHUB_REPO: ${{ vars.DAGSHUB_REPO || 'weather_health' }}
+      DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.10"
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Pull data
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc remote modify origin --local auth basic
+          uv run dvc remote modify origin --local user "$DAGSHUB_USER"
+          uv run dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          uv run dvc pull
+
+      - name: Train and register champion
+        run: uv run python -m src.train env=prod model=lightgbm
+
+      - name: Evaluate
+        run: uv run python -m src.evaluate
+
+      - name: Quality gate
+        run: uv run python -m src.check_metrics
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retrain-reports
+          path: |
+            reports/evaluation_metrics.csv
+            reports/ablation_metrics.csv
+            reports/classification_report.csv
+            models/model_metadata.json

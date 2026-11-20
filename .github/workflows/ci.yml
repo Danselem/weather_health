@@ -34,6 +34,7 @@ jobs:
           uv run mypy
           src/config.py src/validate_data.py src/ablation.py src/evaluate.py
           src/check_metrics.py src/prediction_store.py src/evidently_metrics.py
+          src/alerts.py src/retrain_trigger.py src/performance_monitor.py
           src/utils/mlflow_manager.py service/app.py
           --ignore-missing-imports --no-error-summary
 
@@ -60,7 +61,7 @@ jobs:
         run: >
           uv run pytest
           --cov=src --cov-report=term --cov-report=xml
-          --cov-fail-under=40
+          --cov-fail-under=45
       - uses: actions/upload-artifact@v4
         if: always()
         with:

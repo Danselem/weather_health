@@ -145,6 +145,12 @@ serve:                      ## Run model serving (production mode)
 observe:                     ## Run Evidently drift report (logged predictions vs reference)
 	uv run -m src.evidently_metrics
 
+performance:                 ## Compute accuracy / macro F1 from /feedback labels
+	uv run -m src.performance_monitor
+
+prune-predictions:           ## Delete prediction rows older than 30 days
+	uv run -m src.prediction_store prune --days 30
+
 drift-demo:                  ## Generate simulated drift and run the drift gate
 	uv run -m src.simulate_drift
 
@@ -255,14 +261,23 @@ prefect-force:             ## Force start Prefect server (resets DB if needed)
 prefect-init:               ## Initialize Prefect in current directory
 	uv run prefect init
 
+prefect-pool:              ## Create the 'weather' process work pool if missing
+	uv run prefect work-pool create weather -t process || true
+
 worker:                    ## Start Prefect worker for 'weather' pool
 	uv run prefect worker start -p weather -t process &
 
-deploy:                    ## Deploy train.py flow to Prefect
-	uv run prefect deploy src/train.py:main -n weather-health -p weather 
+deploy:                    ## Deploy all Prefect flows (training + monitoring)
+	uv run prefect deploy
+
+monitoring-deploy:         ## Deploy the scheduled monitoring flow
+	uv run prefect deploy -n weather-health-monitoring
+
+monitoring-run:            ## Trigger the monitoring deployment once
+	uv run prefect deployment run 'monitoring/weather-health-monitoring'
 
 deployment:                ## Trigger a Prefect deployment run
-	uv run prefect deployment run 'train_model/weather-health'
+	uv run prefect deployment run 'train_pipeline/weather-health-training'
 
 # -----------------------------------------------------------------------------
 # Docker

@@ -1,0 +1,241 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroup(\"timestamp\", '1m') AS time,\n  count(*) AS requests\nFROM predictions\nWHERE $__timeFilter(\"timestamp\")\nGROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "p95 latency (ms)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroup(\"timestamp\", '1m') AS time,\n  percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_latency_ms\nFROM predictions\nWHERE $__timeFilter(\"timestamp\")\nGROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Error rate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroup(\"timestamp\", '1m') AS time,\n  sum(CASE WHEN status = 'error' THEN 1 ELSE 0 END)::float / count(*) AS error_rate\nFROM predictions\nWHERE $__timeFilter(\"timestamp\")\nGROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Confidence distribution",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  width_bucket(confidence, 0, 1, 10) AS bucket,\n  count(*) AS count\nFROM predictions\nWHERE confidence IS NOT NULL\nGROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Prediction distribution",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT prediction, count(*) AS count\nFROM predictions\nGROUP BY 1 ORDER BY 2 DESC"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Model performance (labeled)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  \"timestamp\" AS time,\n  accuracy,\n  macro_f1\nFROM performance_metrics\nWHERE $__timeFilter(\"timestamp\")\nORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Labeled predictions",
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS labeled\nFROM predictions\nWHERE true_label IS NOT NULL"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "weather-health",
+    "monitoring"
+  ],
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "API and Model Performance",
+  "uid": "api-health",
+  "version": 1
+}

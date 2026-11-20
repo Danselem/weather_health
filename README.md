@@ -187,12 +187,15 @@ pytest tests/test_train.py -v
 | `make stop-monitoring` | Stop the monitoring stack |
 | `make observe` | Run the Evidently drift report |
 | `make drift-demo` | Simulate drift and run the gate |
+| `make performance` | Compute accuracy/F1 from feedback labels |
+| `make monitoring-deploy` | Deploy scheduled monitoring to Prefect |
 | `make rollback` | Roll ECS back to a task-definition revision |
 
 ### Prefect Server
 
 ```bash
 make prefect          # Start Prefect server
+make prefect-pool     # Create the 'weather' work pool
 make prefect-stop    # Stop Prefect server
 make prefect-reset  # Reset Prefect database
 ```
@@ -263,6 +266,8 @@ make drift-demo         # simulated drift + drift gate
 The API logs predictions to SQLite by default, or PostgreSQL via
 `PREDICTION_DB_URL`. Drift reports use the pinned reference written by
 `src.evaluate` (`data/processed/reference.parquet`), not training data.
+The daily Prefect deployment sends optional webhook alerts and can dispatch a
+retrain after repeated failures; see [`monitoring/README.md`](monitoring/README.md).
 
 ---
 
@@ -271,7 +276,7 @@ The API logs predictions to SQLite by default, or PostgreSQL via
 `.github/workflows/ci.yml` gates every pull request:
 
 1. Ruff and mypy (core modules)
-2. `dvc pull` + pytest with coverage (`--cov-fail-under=40`)
+2. `dvc pull` + pytest with coverage (`--cov-fail-under=45`)
 3. `dvc repro` + data contract + model quality gate (`src.check_metrics`)
 4. Docker build, container `/ready` + `/predict` smoke test
 5. `terraform fmt -check` and `terraform validate` for AWS and GCP
@@ -290,6 +295,9 @@ Deployment is manual and environment-gated:
 It pulls DVC artifacts, fetches `lightgbm_best_model@champion` from MLflow,
 builds/pushes an image tagged with the model version, registers a new ECS task
 definition, updates the service, and runs `/ready` + `/predict` smoke tests.
+A separate `Retrain` workflow runs on `repository_dispatch` or manually; it
+trains, evaluates, runs the quality gate, and registers a new champion, but
+never deploys automatically.
 Rollback:
 
 ```bash

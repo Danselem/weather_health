@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 
 from src import prediction_store
+from src.alerts import format_alert, send_alert
 from src.evidently_metrics import run_evidently
+from src.performance_monitor import compute_performance
+from src.retrain_trigger import trigger_retrain
 
 
 def test_prediction_store_roundtrip(tmp_path, monkeypatch):
@@ -48,3 +51,44 @@ def test_drift_gate_flags_shifted_data(tmp_path, monkeypatch):
     assert metrics["failed_tests"] > 0
     assert metrics["status"] == "failed"
     assert any((tmp_path / "reports").glob("drift_*.html"))
+
+
+def test_alert_and_retrain_fallbacks(tmp_path, monkeypatch):
+    monkeypatch.delenv("ALERT_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("RETRAIN_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("RETRAIN_GITHUB_REPO", raising=False)
+    monkeypatch.delenv("RETRAIN_GITHUB_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    metrics = {
+        "status": "failed",
+        "failed_tests": 3,
+        "num_drifted_columns": 12,
+        "prediction_drift": 0.7,
+    }
+    assert "failed_tests=3" in format_alert(metrics)
+    assert send_alert(metrics) is False
+    result = trigger_retrain("test", metrics)
+    assert result["triggered"] is False
+    assert (tmp_path / "reports/monitoring/retrain_request.json").exists()
+
+
+def test_performance_metrics_from_feedback(tmp_path, monkeypatch):
+    monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    prediction_store.log_prediction(
+        {"request_id": "a", "features": {}, "prediction": "Flu", "true_label": "Flu"}
+    )
+    prediction_store.log_prediction(
+        {"request_id": "b", "features": {}, "prediction": "Flu", "true_label": "Cold"}
+    )
+    metrics = compute_performance()
+    assert metrics is not None
+    assert metrics["labeled_count"] == 2
+    assert 0.0 <= metrics["accuracy"] <= 1.0
+
+
+def test_failed_streak(tmp_path, monkeypatch):
+    monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    for status in ("passed", "failed", "failed"):
+        prediction_store.save_monitoring_metrics({"status": status, "failed_tests": 1})
+    assert prediction_store.failed_streak() == 2

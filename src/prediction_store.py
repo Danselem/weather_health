@@ -66,10 +66,27 @@ def init_db() -> None:
         status TEXT
     )
     """
+    performance_ddl = f"""
+    CREATE TABLE IF NOT EXISTS performance_metrics (
+        timestamp {timestamp_type} NOT NULL,
+        accuracy DOUBLE PRECISION,
+        macro_f1 DOUBLE PRECISION,
+        labeled_count INTEGER,
+        model_version TEXT
+    )
+    """
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_predictions_timestamp ON predictions(timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_predictions_status ON predictions(status)",
+        "CREATE INDEX IF NOT EXISTS idx_predictions_label ON predictions(true_label)",
+    ]
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute(predictions_ddl)
         cur.execute(metrics_ddl)
+        cur.execute(performance_ddl)
+        for statement in indexes:
+            cur.execute(statement)
         conn.commit()
 
 
@@ -152,6 +169,74 @@ def save_monitoring_metrics(metrics: dict[str, Any]) -> None:
         conn.commit()
 
 
+def fetch_labeled_predictions(limit: int = 5000) -> pd.DataFrame:
+    init_db()
+    sql = (
+        "SELECT * FROM predictions WHERE true_label IS NOT NULL "
+        "ORDER BY timestamp DESC LIMIT " + str(int(limit))
+    )
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(sql)
+        columns = [desc[0] for desc in cur.description]
+        rows = cur.fetchall()
+    return pd.DataFrame(rows, columns=columns).sort_values("timestamp").reset_index(drop=True)
+
+
+def save_performance_metrics(metrics: dict[str, Any]) -> None:
+    init_db()
+    timestamp = metrics.get("timestamp") or datetime.now(timezone.utc)
+    values = (
+        timestamp if _is_postgres() else str(timestamp),
+        float(metrics.get("accuracy", 0.0)),
+        float(metrics.get("macro_f1", 0.0)),
+        int(metrics.get("labeled_count", 0)),
+        metrics.get("model_version", "unknown"),
+    )
+    sql = f"""
+    INSERT INTO performance_metrics
+    (timestamp, accuracy, macro_f1, labeled_count, model_version)
+    VALUES ({", ".join([_placeholder()] * 5)})
+    """
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, values)
+        conn.commit()
+
+
+def recent_monitoring_statuses(limit: int = 5) -> list[str]:
+    init_db()
+    sql = "SELECT status FROM monitoring_metrics ORDER BY timestamp DESC LIMIT " + str(int(limit))
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(sql)
+        return [row[0] for row in cur.fetchall()]
+
+
+def failed_streak() -> int:
+    streak = 0
+    for status in recent_monitoring_statuses(limit=20):
+        if status != "failed":
+            break
+        streak += 1
+    return streak
+
+
+def prune_predictions(days: int = 30) -> int:
+    init_db()
+    cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
+    cutoff_dt = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"DELETE FROM predictions WHERE timestamp < {_placeholder()}",
+            (cutoff_dt if _is_postgres() else str(cutoff_dt),),
+        )
+        deleted = cur.rowcount
+        conn.commit()
+    return int(deleted)
+
+
 def stats() -> dict[str, Any]:
     init_db()
     with _connect() as conn:
@@ -159,3 +244,15 @@ def stats() -> dict[str, Any]:
         cur.execute("SELECT COUNT(*), MAX(timestamp) FROM predictions")
         count, latest = cur.fetchone()
     return {"count": int(count), "latest_prediction": str(latest) if latest else None}
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
+    prune = sub.add_parser("prune")
+    prune.add_argument("--days", type=int, default=30)
+    args = parser.parse_args()
+    if args.command == "prune":
+        print(f"Deleted {prune_predictions(args.days)} prediction rows")

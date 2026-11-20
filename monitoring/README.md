@@ -49,7 +49,55 @@ PREDICTION_DB_URL=postgresql://postgres:example@localhost:5432/test \
 ```
 
 Reports land in `reports/monitoring/`; Grafana panels read
-`monitoring_metrics` from PostgreSQL.
+`monitoring_metrics` and `performance_metrics` from PostgreSQL.
+
+## Schedule and alerts
+
+Deploy the daily monitoring flow once a Prefect work pool (`weather`) is running:
+
+```bash
+make prefect-pool       # first time only
+make monitoring-deploy
+
+# The worker must see the same prediction store as the API:
+export PREDICTION_DB_URL=postgresql://postgres:example@localhost:5432/test
+make worker             # in another terminal
+```
+
+The deployment runs daily at 06:00 UTC. Its pull step runs `uv sync --frozen`
+and `dvc pull`, so the worker needs DVC credentials available (for example via
+`DAGSHUB_USER`/`DAGSHUB_TOKEN` and `.dvc/config.local`).
+
+Set optional integrations:
+
+```bash
+export ALERT_WEBHOOK_URL=https://hooks.slack.com/services/...
+export RETRAIN_WEBHOOK_URL=https://example.com/retrain
+# or trigger the GitHub Retrain workflow:
+export RETRAIN_GITHUB_REPO=Danselem/weather_health
+export RETRAIN_GITHUB_TOKEN=<PAT with repo scope>
+export RETRAIN_FAILURE_THRESHOLD=2
+```
+
+A failed report sends an alert and, after `RETRAIN_FAILURE_THRESHOLD`
+consecutive failures, dispatches `retrain`. The retrain workflow trains, evaluates,
+runs the quality gate, and registers a new champion; it never deploys
+automatically.
+
+## Performance from feedback
+
+```bash
+make performance
+```
+
+This joins `/feedback` labels to predictions and writes accuracy/macro F1 to
+`performance_metrics` for the Grafana panel.
+
+## Retention
+
+```bash
+make prune-predictions
+```
 
 ## Delayed labels
 
