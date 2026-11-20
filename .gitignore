@@ -211,6 +211,8 @@ tff
 /reports/cv_metrics.csv
 /reports/shap_summary.png
 /reports/shap_feature_importance.csv
+/reports/ablation_metrics.png
+/reports/slice_metrics.png
 
 # Terraform local files inside infra folder
 infra/.terraform/

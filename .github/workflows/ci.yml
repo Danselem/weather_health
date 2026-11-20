@@ -36,6 +36,7 @@ jobs:
           src/check_metrics.py src/prediction_store.py src/evidently_metrics.py
           src/alerts.py src/retrain_trigger.py src/performance_monitor.py
           src/calibration.py src/slices.py src/cross_validate.py src/explain.py
+          src/analysis_plots.py
           src/utils/mlflow_manager.py service/app.py
           --ignore-missing-imports --no-error-summary
 
@@ -111,6 +112,8 @@ jobs:
             reports/cv_metrics.csv
             reports/slice_metrics.csv
             reports/shap_feature_importance.csv
+            reports/ablation_metrics.png
+            reports/slice_metrics.png
 
   docker:
     name: Docker Build and Smoke Test

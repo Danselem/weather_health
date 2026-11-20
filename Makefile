@@ -85,6 +85,7 @@ analysis:                    ## Calibration, slices, CV, and SHAP reports
 	uv run -m src.slices
 	uv run -m src.cross_validate
 	uv run -m src.explain
+	uv run -m src.analysis_plots
 
 transform:                   ## Preprocess data: split, encode, save raw features (src.transform module)
 	uv run -m src.transform 

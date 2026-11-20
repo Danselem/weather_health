@@ -382,3 +382,27 @@ stages:
       hash: md5
       md5: 941573f904be489ff272d4693774c443
       size: 37228
+  analysis_plots:
+    cmd: uv run -m src.analysis_plots
+    deps:
+    - path: reports/ablation_metrics.csv
+      hash: md5
+      md5: daea513f9b4d96e653ad23ab2e6f4b0e
+      size: 196
+    - path: reports/slice_metrics.csv
+      hash: md5
+      md5: f1512d81f53ef55d5a8a5b3ca7bca1e9
+      size: 355
+    - path: src/analysis_plots.py
+      hash: md5
+      md5: 797a5a94a7e19566ef18641cf41a744e
+      size: 1630
+    outs:
+    - path: reports/ablation_metrics.png
+      hash: md5
+      md5: d55933ddb4c32b2a6c93882da1456017
+      size: 14773
+    - path: reports/slice_metrics.png
+      hash: md5
+      md5: c5c6e5c53d520ce3e18c25ada42ebe37
+      size: 19882

@@ -145,3 +145,13 @@ stages:
     outs:
       - reports/shap_summary.png
       - reports/shap_feature_importance.csv
+
+  analysis_plots:
+    cmd: uv run -m src.analysis_plots
+    deps:
+      - src/analysis_plots.py
+      - reports/ablation_metrics.csv
+      - reports/slice_metrics.csv
+    outs:
+      - reports/ablation_metrics.png
+      - reports/slice_metrics.png

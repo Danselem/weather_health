@@ -209,6 +209,7 @@ Rollback:
 
 ## Documentation
 
+- [Project write-up](blog.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Runbook](docs/RUNBOOK.md)
 - [Model card](MODEL_CARD.md)
