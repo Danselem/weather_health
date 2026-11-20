@@ -1,190 +1,58 @@
-# Weather Health - AWS Infrastructure
+# AWS Infrastructure
 
-**Parent Project:** [weather-health](https://github.com/Danselem/weather-health)
+Supported AWS deployment path for the weather-health API.
 
-Terraform infrastructure as code for deploying the Weather Health ML application on AWS.
-
-> **Note:** This folder can be extracted to a separate repo (`weather-health-infra-aws`) for production use.
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   ECR       │────▶│  ECS Task   │────▶│     S3      │
-│ (Images)    │     │ (FastAPI)   │     │ (Artifacts) │
-└─────────────┘     └─────────────┘     └─────────────┘
-                          │
-                    ┌──────┴──────┐
-                    │     ALB     │
-                    └─────────────┘
+Internet -> ALB (public subnets) -> ECS Fargate (private subnets)
+                                      |-> Secrets Manager
+                                      |-> CloudWatch Logs
+ECR -> ECS task image                 |-> S3 artifacts
 ```
 
----
+- ECS tasks run in private subnets behind a NAT gateway.
+- The ALB is the only public entry point.
+- The database password is generated and stored in Secrets Manager; it is
+  injected into the task as a `secrets` entry, never as plaintext environment.
+- Terraform state is remote (S3 + DynamoDB locking).
+- Optional monthly AWS budget with email notifications.
 
-## 📁 Directory Structure
-
-```
-infra-aws/
-├── backend.tf                    # S3 remote state
-├── versions.tf                   # Provider versions
-├── main.tf                       # Root module
-├── modules/
-│   ├── ecr/                     # ECR repository
-│   ├── ecs-fargate/             # ECS cluster & service + ALB
-│   └── s3-artifacts/            # S3 bucket for models
-├── environments/
-│   ├── dev/                     # Development config
-│   ├── staging/                 # Staging config
-│   └── prod/                    # Production config
-├── .github/workflows/           # CI/CD (separate repo)
-└── README.md
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- AWS Account
-- Terraform >= 1.7.0
-- AWS CLI configured
-- Docker (for building images)
-
-### Deploy
+## One-time state bootstrap
 
 ```bash
-# 1. Navigate to environment
-cd environments/dev
-
-# 2. Initialize Terraform
+cd infra-aws/bootstrap
 terraform init
-
-# 3. Plan changes
-terraform plan
-
-# 4. Apply (or use CI/CD)
-terraform apply
+terraform apply \
+  -var="bucket_name=<globally-unique-bucket>" \
+  -var="lock_table_name=weather-health-terraform-locks"
 ```
 
----
+Create `infra-aws/backend.hcl` from `backend.hcl.example` using the returned
+bucket and table.
 
-## 🌈 Environments
-
-| Environment | Replicas | Auto-scale | Cost |
-|-------------|----------|------------|------|
-| Dev | 1 | 1-5 | $25-50/mo |
-| Staging | 2 | 2-8 | $50-100/mo |
-| Prod | 3 | 2-10 | $100-200/mo |
-
----
-
-## 🔧 Configuration
-
-Edit `environments/*/terraform.tfvars`:
-
-```hcl
-aws_region      = "us-east-1"
-environment     = "dev"
-container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/weather-health:v1.0"
-```
-
----
-
-## 🔐 Security
-
-- ✅ ECR image scanning on push
-- ✅ S3 versioning enabled
-- ✅ S3 encryption (AES256)
-- ✅ S3 block public access
-- ✅ IAM roles with least privilege
-- ✅ ALB with security groups
-
----
-
-## 📦 Modules
-
-### ECR (`modules/ecr/`)
-- Docker container registry
-- Image scanning on push
-- Lifecycle policy (keep 10 images)
-
-### ECS Fargate (`modules/ecs-fargate/`)
-- ECS Cluster with Container Insights
-- Fargate tasks with proper IAM roles
-- Application Load Balancer
-- Auto-scaling (CPU-based)
-- CloudWatch logging
-
-### S3 Artifacts (`modules/s3-artifacts/`)
-- Versioning enabled
-- Server-side encryption
-- Lifecycle rules
-- Public access block
-
----
-
-## 🧪 Testing
+## Deploy
 
 ```bash
-# Validate Terraform syntax
-terraform fmt -recursive
-terraform validate
-
-# Plan (dry run)
-terraform plan
+cd infra-aws
+terraform init -backend-config=backend.hcl
+terraform plan -var-file=environments/dev/terraform.tfvars
+terraform apply -var-file=environments/dev/terraform.tfvars
 ```
 
----
+Set `container_image` after pushing the image to ECR, or let the deploy
+workflow register a new task definition with the new image.
 
-## 💰 Cost Estimate
+## Cost guard
 
-| Resource | Monthly Cost |
-|----------|--------------|
-| ECR Storage | ~$0.10/GB |
-| ECS Fargate | ~$25-50/task-month |
-| ALB | ~$16/month |
-| S3 | ~$0.02/GB |
-| Data Transfer | ~$0.09/GB |
+Set `monthly_budget_usd` and `budget_email` in the environment tfvars. A value
+of `0` disables the budget resource.
 
----
+## Security notes
 
-## 🔄 CI/CD Integration
-
-```yaml
-# .github/workflows/deploy.yml (add to separate infra repo)
-jobs:
-  terraform:
-    - run: terraform init
-    - run: terraform plan
-    - run: terraform apply
-  
-  deploy-ecs:
-    - run: aws ecs update-service --force-new-deployment
-```
-
----
-
-## 🆘 Troubleshooting
-
-```bash
-# View ECS logs
-aws logs tail /ecs/weather-health --follow
-
-# Check service status
-aws ecs describe-services \
-  --cluster weather-health-dev \
-  --services weather-health-service-dev
-
-# Check ALB target health
-aws elbv1 describe-target-health \
-  --target-group-arn <arn>
-```
-
----
-
-## 📝 License
-
-MIT License - See [LICENSE](../LICENSE)
+- Remote state may contain the generated DB password; restrict bucket access
+  and keep encryption enabled.
+- The ALB currently terminates HTTP for the demo. Add an ACM certificate and an
+  HTTPS listener before production use.
+- `infra/` is a legacy/archived stack and is not supported.
+- `infra-gcp/` is an alternative path, not the primary deployment.

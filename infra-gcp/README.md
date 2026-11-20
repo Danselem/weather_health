@@ -1,3 +1,5 @@
+> **Alternative deployment path.** The supported production path is `infra-aws/`. This stack is kept as a reference for Cloud Run and uses local Terraform state.
+
 # Weather Health - GCP Infrastructure
 
 **Parent Project:** [weather-health](https://github.com/Danselem/weather-health)

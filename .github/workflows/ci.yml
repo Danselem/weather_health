@@ -130,6 +130,18 @@ jobs:
             -H 'Content-Type: application/json' --data @sample_input.json
           docker rm -f weather-health-ci
 
+  security:
+    name: Terraform Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - name: Checkov
+        run: uvx checkov -d infra-aws --framework terraform --compact --hard-fail-on HIGH
+
   terraform:
     name: Terraform Format and Validate
     runs-on: ubuntu-latest
@@ -148,5 +160,10 @@ jobs:
       - name: Validate GCP
         run: |
           cd infra-gcp
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: Validate state bootstrap
+        run: |
+          cd infra-aws/bootstrap
           terraform init -backend=false -input=false
           terraform validate

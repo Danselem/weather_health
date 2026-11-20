@@ -52,9 +52,11 @@ module "ecs_fargate" {
   container_port  = 8080
 
   vpc_id                 = module.vpc.vpc_id
-  subnet_ids             = module.vpc.public_subnet_ids
-  security_group_ids     = [module.vpc.alb_security_group_id]
-  assign_public_ip_tasks = true
+  subnet_ids             = module.vpc.private_subnet_ids
+  alb_subnet_ids         = module.vpc.public_subnet_ids
+  security_group_ids     = []
+  alb_security_group_id  = module.vpc.alb_security_group_id
+  assign_public_ip_tasks = false
 
   cpu           = 512
   memory        = 1024
@@ -62,44 +64,10 @@ module "ecs_fargate" {
   min_capacity  = var.environment == "prod" ? 2 : 1
   max_capacity  = var.environment == "prod" ? 10 : 5
 
-  db_password = var.db_password
+  db_secret_arn = aws_secretsmanager_secret.db.arn
 
   tags = {
     Project     = var.project
     Environment = var.environment
   }
-}
-
-# =============================================================================
-# Outputs
-# =============================================================================
-
-output "vpc_id" {
-  description = "VPC ID"
-  value       = module.vpc.vpc_id
-}
-
-output "ecr_repository_url" {
-  description = "ECR repository URL"
-  value       = module.ecr.repository_url
-}
-
-output "s3_artifacts_bucket" {
-  description = "S3 artifacts bucket name"
-  value       = module.s3_artifacts.bucket_name
-}
-
-output "ecs_cluster_name" {
-  description = "ECS Cluster name"
-  value       = module.ecs_fargate.cluster_name
-}
-
-output "ecs_service_name" {
-  description = "ECS Service name"
-  value       = module.ecs_fargate.service_name
-}
-
-output "alb_dns_name" {
-  description = "ALB DNS name for accessing the service"
-  value       = module.ecs_fargate.alb_dns_name
 }

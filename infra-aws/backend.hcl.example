@@ -1,0 +1,5 @@
+bucket         = "weather-health-terraform-state"
+key            = "weather-health/prod/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "weather-health-terraform-locks"
+encrypt        = true

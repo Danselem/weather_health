@@ -151,6 +151,9 @@ performance:                 ## Compute accuracy / macro F1 from /feedback label
 prune-predictions:           ## Delete prediction rows older than 30 days
 	uv run -m src.prediction_store prune --days 30
 
+security-scan:               ## Static security scan for Terraform (high severity)
+	uvx checkov -d infra-aws --framework terraform --compact --hard-fail-on HIGH
+
 drift-demo:                  ## Generate simulated drift and run the drift gate
 	uv run -m src.simulate_drift
 
@@ -354,15 +357,22 @@ docker-build-prod:          ## Build Docker image with production model
 
 # === AWS Deployment ===
 
-aws-init:                  ## Initialize Terraform for AWS (only needed first time)
+aws-bootstrap:             ## Create S3 state bucket + DynamoDB lock table (once per account)
+	cd infra-aws/bootstrap && terraform init && terraform apply \
+		-var="bucket_name=$(TF_STATE_BUCKET)" \
+		-var="lock_table_name=$(TF_LOCK_TABLE)" \
+		-var="region=$(AWS_REGION)"
+
+aws-init:                  ## Initialize Terraform with remote state (create backend.hcl first)
+	@test -f infra-aws/backend.hcl || (echo "❌ Create infra-aws/backend.hcl from backend.hcl.example" && exit 1)
 	@echo "Initializing Terraform for AWS..."
 	@rm -f infra-aws/.terraform.tfstate.lock.info 2>/dev/null || true
-	cd infra-aws && terraform init -upgrade
+	cd infra-aws && terraform init -upgrade -backend-config=backend.hcl
 
 aws-plan:                 ## Plan AWS infrastructure changes
 	@make fetch-model || exit 1
 	@rm -f infra-aws/.terraform.tfstate.lock.info 2>/dev/null || true
-	cd infra-aws && terraform plan -var-file=environments/prod/terraform.tfvars -lock=false
+	cd infra-aws && terraform plan -var-file=environments/prod/terraform.tfvars
 
 aws-deploy:               ## Build and push to ECR and deploy to ECS
 	@make fetch-model || exit 1
@@ -370,20 +380,20 @@ aws-deploy:               ## Build and push to ECR and deploy to ECS
 	docker build -t weather-health:latest .
 	@echo "=== Step 2: Create infrastructure (ECR, ECS, VPC) ==="
 	@rm -f infra-aws/.terraform.tfstate.lock.info 2>/dev/null || true
-	cd infra-aws && terraform apply -var-file=environments/prod/terraform.tfvars -auto-approve -lock=false
+	cd infra-aws && terraform apply -var-file=environments/prod/terraform.tfvars -auto-approve
 	@echo "=== Step 3: Push image to ECR ==="
 	@ECR_URI=$$(aws ecr describe-repositories --region us-east-1 --repository-names weather-health --query 'repositories[0].repositoryUri' --output text); \
 	aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$${ECR_URI%/*}"; \
 	docker tag weather-health:latest "$${ECR_URI}:v1"; \
 	docker push "$${ECR_URI}:v1"; \
 	echo "=== Step 4: Update ECS service with new image ==="; \
-	cd infra-aws && terraform apply -var-file=environments/prod/terraform.tfvars -var "container_image=$${ECR_URI}:v1" -auto-approve -lock=false
+	cd infra-aws && terraform apply -var-file=environments/prod/terraform.tfvars -var "container_image=$${ECR_URI}:v1" -auto-approve
 	@echo "=== Deployment complete! ==="
 
 aws-destroy:              ## Destroy AWS infrastructure
 	@rm -f infra-aws/.terraform.tfstate.lock.info 2>/dev/null || true
 	@aws ecr delete-repository --region us-east-1 --repository-name weather-health --force 2>/dev/null || true
-	cd infra-aws && terraform destroy -var-file=environments/prod/terraform.tfvars -auto-approve -lock=false
+	cd infra-aws && terraform destroy -var-file=environments/prod/terraform.tfvars -auto-approve
 
 # === GCP Deployment ===
 

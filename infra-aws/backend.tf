@@ -1,12 +1,6 @@
-# =============================================================================
-# Terraform Backend Configuration
-# =============================================================================
-# For local development: uses local state file.
-# For production/team: change to S3 backend (see backend.s3.tf.example).
-# =============================================================================
-
+# Remote state. Initialize with:
+#   terraform init -backend-config=backend.hcl
+# See backend.hcl.example and bootstrap/.
 terraform {
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  backend "s3" {}
 }

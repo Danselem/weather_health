@@ -76,7 +76,13 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids" {
-  description = "Subnet IDs for ECS tasks"
+  description = "Private subnet IDs for ECS tasks"
+  type        = list(string)
+  default     = []
+}
+
+variable "alb_subnet_ids" {
+  description = "Public subnet IDs for the ALB"
   type        = list(string)
   default     = []
 }
@@ -87,8 +93,13 @@ variable "security_group_ids" {
   default     = []
 }
 
-variable "db_password" {
-  description = "Database password"
+variable "alb_security_group_id" {
+  description = "Security group ID for the public ALB"
+  type        = string
+}
+
+variable "db_secret_arn" {
+  description = "Secrets Manager ARN containing DB_PASSWORD (optional)"
   type        = string
   default     = ""
   sensitive   = true
@@ -111,29 +122,7 @@ locals {
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids
   ecr_image  = var.container_image != "" ? var.container_image : "amazon/amazon-ecs-sample:latest"
-  container_def = var.db_password != "" ? [
-    {
-      name      = var.name
-      image     = local.ecr_image
-      essential = true
-      portMappings = [{
-        containerPort = var.container_port
-        protocol      = "tcp"
-      }]
-      environment = [
-        { name = "ENVIRONMENT", value = var.environment },
-        { name = "DB_PASSWORD", value = var.db_password }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = "/ecs/${var.name}"
-          "awslogs-region"        = "us-east-1"
-          "awslogs-stream-prefix" = "ecs"
-        }
-      }
-    }
-    ] : [
+  container_def = [
     {
       name      = var.name
       image     = local.ecr_image
@@ -144,6 +133,9 @@ locals {
       }]
       environment = [
         { name = "ENVIRONMENT", value = var.environment }
+      ]
+      secrets = var.db_secret_arn == "" ? [] : [
+        { name = "DB_PASSWORD", valueFrom = var.db_secret_arn }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -233,6 +225,22 @@ resource "aws_iam_role" "ecs_task_role" {
   })
 }
 
+resource "aws_iam_role_policy" "ecs_secrets" {
+  count = var.db_secret_arn == "" ? 0 : 1
+
+  name = "${var.name}-ecs-secrets-${var.environment}"
+  role = aws_iam_role.ecs_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = var.db_secret_arn
+    }]
+  })
+}
+
 # =============================================================================
 # Security Group
 # =============================================================================
@@ -243,10 +251,10 @@ resource "aws_security_group" "ecs_sg" {
   vpc_id      = local.vpc_id
 
   ingress {
-    from_port   = var.container_port
-    to_port     = var.container_port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = var.container_port
+    to_port         = var.container_port
+    protocol        = "tcp"
+    security_groups = [var.alb_security_group_id]
   }
 
   egress {
@@ -282,8 +290,8 @@ resource "aws_lb" "this" {
   name               = "${var.name}-alb-${var.environment}"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.ecs_sg.id]
-  subnets            = local.subnet_ids
+  security_groups    = [var.alb_security_group_id]
+  subnets            = var.alb_subnet_ids
 
   enable_deletion_protection = false
 
@@ -305,8 +313,8 @@ resource "aws_lb_target_group" "this" {
     unhealthy_threshold = 2
     timeout             = 5
     interval            = 30
-    path                = "/"
-    matcher             = "200,301,302"
+    path                = "/health"
+    matcher             = "200"
   }
 
   tags = merge(var.tags, {

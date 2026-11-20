@@ -189,6 +189,7 @@ pytest tests/test_train.py -v
 | `make drift-demo` | Simulate drift and run the gate |
 | `make performance` | Compute accuracy/F1 from feedback labels |
 | `make monitoring-deploy` | Deploy scheduled monitoring to Prefect |
+| `make security-scan` | Checkov scan for high-severity Terraform issues |
 | `make rollback` | Roll ECS back to a task-definition revision |
 
 ### Prefect Server
@@ -206,15 +207,21 @@ make prefect-reset  # Reset Prefect database
 
 ### AWS (ECS Fargate)
 
+The AWS path uses private ECS subnets, remote Terraform state, Secrets Manager,
+and an optional monthly budget.
+
 ```bash
-# Step 1: Initialize Terraform (first time only)
+# Step 0: Create the S3 state bucket + DynamoDB lock table (once per account)
+make aws-bootstrap TF_STATE_BUCKET=<globally-unique-bucket> \
+  TF_LOCK_TABLE=weather-health-terraform-locks AWS_REGION=us-east-1
+
+# Create infra-aws/backend.hcl from backend.hcl.example, then:
 make aws-init
 
 # Step 2: Plan infrastructure changes
 make aws-plan
 
 # Step 3: Deploy (builds Docker, creates infra, pushes to ECR, deploys to ECS)
-make aws-destroy  # First clean up any existing resources
 make aws-deploy
 
 # Step 4: Destroy infrastructure when done
@@ -229,9 +236,13 @@ make aws-destroy
 
 **Outputs:**
 - ALB DNS: Check Terraform output for `alb_dns_name`
-- ECR: `828221019178.dkr.ecr.us-east-1.amazonaws.com/weather-health`
+- ECR: Check Terraform output for `ecr_repository_url`
+- DB password: generated in Secrets Manager; never in tfvars
 
-### GCP (Cloud Run)
+### GCP (Cloud Run) — alternative path
+
+> The supported production path is AWS. GCP is kept as a reference and uses
+> local Terraform state.
 
 ```bash
 # Initialize

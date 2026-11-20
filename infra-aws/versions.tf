@@ -82,11 +82,16 @@ variable "container_image" {
   default     = ""
 }
 
-variable "db_password" {
-  description = "Database password (use secrets manager in production)"
+variable "monthly_budget_usd" {
+  description = "Optional monthly AWS budget in USD; 0 disables the budget"
+  type        = number
+  default     = 0
+}
+
+variable "budget_email" {
+  description = "Email for budget alerts; required when monthly_budget_usd > 0"
   type        = string
   default     = ""
-  sensitive   = true
 }
 
 variable "vpc_id" {

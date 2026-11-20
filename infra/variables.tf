@@ -32,3 +32,9 @@ variable "environment" {
   description = "Deployment environment (dev/prod)"
   default     = "dev"
 }
+
+variable "allowed_ssh_cidr" {
+  description = "CIDR allowed to SSH to the legacy MLflow EC2 instance"
+  type        = string
+  default     = "10.0.0.0/16"
+}
