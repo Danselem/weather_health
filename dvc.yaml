@@ -99,3 +99,49 @@ stages:
       - data/processed/y_test.csv
     outs:
       - reports/ablation_metrics.csv
+
+  calibration:
+    cmd: uv run -m src.calibration
+    deps:
+      - src/calibration.py
+      - params.yaml
+      - models/weather_disease_model.pkl
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+    outs:
+      - reports/calibration_metrics.csv
+      - reports/reliability_diagram.png
+
+  slices:
+    cmd: uv run -m src.slices
+    deps:
+      - src/slices.py
+      - params.yaml
+      - models/weather_disease_model.pkl
+      - data/processed/label_encoder.pkl
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+    outs:
+      - reports/slice_metrics.csv
+
+  cross_validate:
+    cmd: uv run -m src.cross_validate
+    deps:
+      - src/cross_validate.py
+      - params.yaml
+      - models/weather_disease_model.pkl
+      - data/processed/x_train.csv
+      - data/processed/y_train.csv
+    outs:
+      - reports/cv_metrics.csv
+
+  explain:
+    cmd: uv run -m src.explain
+    deps:
+      - src/explain.py
+      - params.yaml
+      - models/weather_disease_model.pkl
+      - data/processed/x_test.csv
+    outs:
+      - reports/shap_summary.png
+      - reports/shap_feature_importance.csv

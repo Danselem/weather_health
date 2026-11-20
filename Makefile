@@ -73,6 +73,12 @@ ablation:                    ## Compare weather-only, symptom-only, and full fea
 check-metrics:               ## Fail if model metrics or data contract regress
 	uv run -m src.check_metrics
 
+analysis:                    ## Calibration, slices, CV, and SHAP reports
+	uv run -m src.calibration
+	uv run -m src.slices
+	uv run -m src.cross_validate
+	uv run -m src.explain
+
 transform:                   ## Preprocess data: split, encode, save raw features (src.transform module)
 	uv run -m src.transform 
 

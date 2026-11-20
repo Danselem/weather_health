@@ -205,6 +205,12 @@ tff
 /reports/classification_report.csv
 /reports/data_validation.json
 /reports/ablation_metrics.csv
+/reports/calibration_metrics.csv
+/reports/reliability_diagram.png
+/reports/slice_metrics.csv
+/reports/cv_metrics.csv
+/reports/shap_summary.png
+/reports/shap_feature_importance.csv
 
 # Terraform local files inside infra folder
 infra/.terraform/
