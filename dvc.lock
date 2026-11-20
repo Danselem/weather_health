@@ -1,0 +1,260 @@
+schema: '2.0'
+stages:
+  clean:
+    cmd: uv run -m src.clean_data
+    deps:
+    - path: config
+      hash: md5
+      md5: e576a46697d451514f649ee8d26b4c46.dir
+      size: 30424
+      nfiles: 12
+    - path: data/raw/Weather-related disease prediction.csv
+      hash: md5
+      md5: 4aa51b2bb76b45b2000ce71517a0fd1e
+      size: 673781
+    - path: src/clean_data.py
+      hash: md5
+      md5: 7030e34960487ce204b992419140fb93
+      size: 5890
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    params:
+      params.yaml:
+        data.interim_data_path: data/interim/weather_disease.parquet
+        data.raw_data_path: data/raw/Weather-related disease prediction.csv
+    outs:
+    - path: data/interim/weather_disease.parquet
+      hash: md5
+      md5: 4ccc62af3bbb7deefdd0a26751ba2618
+      size: 307112
+  validate:
+    cmd: uv run -m src.validate_data
+    deps:
+    - path: config
+      hash: md5
+      md5: e576a46697d451514f649ee8d26b4c46.dir
+      size: 30424
+      nfiles: 12
+    - path: data/interim/weather_disease.parquet
+      hash: md5
+      md5: 4ccc62af3bbb7deefdd0a26751ba2618
+      size: 307112
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    - path: src/validate_data.py
+      hash: md5
+      md5: 6966ecb9c9aa21ddf90dbeddcaca9224
+      size: 2832
+    outs:
+    - path: reports/data_validation.json
+      hash: md5
+      md5: ad6f883135e995ddf94b81531e4d9a00
+      size: 1431
+  transform:
+    cmd: uv run -m src.transform
+    deps:
+    - path: config
+      hash: md5
+      md5: e576a46697d451514f649ee8d26b4c46.dir
+      size: 30424
+      nfiles: 12
+    - path: data/interim/weather_disease.parquet
+      hash: md5
+      md5: 4ccc62af3bbb7deefdd0a26751ba2618
+      size: 307112
+    - path: reports/data_validation.json
+      hash: md5
+      md5: ad6f883135e995ddf94b81531e4d9a00
+      size: 1431
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    - path: src/transform.py
+      hash: md5
+      md5: d92bdd436a39c2c0ca8f9349ba909716
+      size: 7505
+    params:
+      params.yaml:
+        artifacts.feature_order_path: data/processed/feature_order.json
+        artifacts.label_encoder_path: data/processed/label_encoder.pkl
+        artifacts.scaler_path: data/processed/minmax_scaler.pkl
+        data:
+          interim_data_path: data/interim/weather_disease.parquet
+          output_dir: data/processed
+          raw_data_path: data/raw/Weather-related disease prediction.csv
+          target_col: prognosis
+          x_test_path: data/processed/x_test.csv
+          x_train_path: data/processed/x_train.csv
+          y_test_path: data/processed/y_test.csv
+          y_train_path: data/processed/y_train.csv
+    outs:
+    - path: data/processed/feature_order.json
+      hash: md5
+      md5: 906aec94326b786e3619b5f47f7d49b0
+      size: 771
+    - path: data/processed/label_encoder.pkl
+      hash: md5
+      md5: 58740a12451a8dd9affc746761b050f4
+      size: 370
+    - path: data/processed/minmax_scaler.pkl
+      hash: md5
+      md5: 1385ed2122e081264da36d77f484816b
+      size: 3018
+    - path: data/processed/x_test.csv
+      hash: md5
+      md5: 9fc396f9c071792669829460da6a4251
+      size: 109389
+    - path: data/processed/x_train.csv
+      hash: md5
+      md5: 22074f718e7199b63a421d5c06155196
+      size: 435741
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: f04097c26f4e8ea4d1c228889fa78588
+      size: 2066
+    - path: data/processed/y_train.csv
+      hash: md5
+      md5: cfff6ccfbff0260af904cddcc3603850
+      size: 8228
+  train:
+    cmd: uv run -m src.train model=lightgbm
+    deps:
+    - path: config
+      hash: md5
+      md5: e576a46697d451514f649ee8d26b4c46.dir
+      size: 30424
+      nfiles: 12
+    - path: data/processed/x_test.csv
+      hash: md5
+      md5: 9fc396f9c071792669829460da6a4251
+      size: 109389
+    - path: data/processed/x_train.csv
+      hash: md5
+      md5: 22074f718e7199b63a421d5c06155196
+      size: 435741
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: f04097c26f4e8ea4d1c228889fa78588
+      size: 2066
+    - path: data/processed/y_train.csv
+      hash: md5
+      md5: cfff6ccfbff0260af904cddcc3603850
+      size: 8228
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    - path: src/train.py
+      hash: md5
+      md5: 2127e09314c548c96dbec7b8d768b406
+      size: 5914
+    - path: src/utils/mlflow_manager.py
+      hash: md5
+      md5: 1684e3e34478fc66d69c38dfe98687dd
+      size: 12096
+    params:
+      params.yaml:
+        modeling:
+          loss_function: F1
+          model_family: lightgbm
+          n_trials: 5
+          objective_function: Logloss
+    outs:
+    - path: models/weather_disease_model.pkl
+      hash: md5
+      md5: ca9a7a692b7129d1b6096c2857a5bd3d
+      size: 5490517
+  evaluate:
+    cmd: uv run -m src.evaluate
+    deps:
+    - path: data/processed/x_test.csv
+      hash: md5
+      md5: 9fc396f9c071792669829460da6a4251
+      size: 109389
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: f04097c26f4e8ea4d1c228889fa78588
+      size: 2066
+    - path: models/weather_disease_model.pkl
+      hash: md5
+      md5: ca9a7a692b7129d1b6096c2857a5bd3d
+      size: 5490517
+    - path: params.yaml
+      hash: md5
+      md5: 34c87e963c137f3f476a875d6e14e48f
+      size: 1242
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    - path: src/evaluate.py
+      hash: md5
+      md5: 08059b8f2bc406b9d3608c1814956b7d
+      size: 6432
+    outs:
+    - path: reports/classification_report.csv
+      hash: md5
+      md5: 05b0cbc45cff78ba124d446f10425620
+      size: 806
+    - path: reports/confusion_matrix.png
+      hash: md5
+      md5: c64706e40c94cb4fb44cfa262e118683
+      size: 48966
+    - path: reports/evaluation_metrics.csv
+      hash: md5
+      md5: 317ca03db8de93fb9c644148e3a94613
+      size: 110
+    - path: reports/feature_importance.png
+      hash: md5
+      md5: d78f53a7dc24ac5f6eabf431cd9929e1
+      size: 71783
+    - path: reports/model_metrics.csv
+      hash: md5
+      md5: 317ca03db8de93fb9c644148e3a94613
+      size: 110
+    - path: reports/predictions.csv
+      hash: md5
+      md5: 08a34f959a82cbf265781ee02025d909
+      size: 19878
+  ablation:
+    cmd: uv run -m src.ablation
+    deps:
+    - path: config
+      hash: md5
+      md5: e576a46697d451514f649ee8d26b4c46.dir
+      size: 30424
+      nfiles: 12
+    - path: data/processed/x_test.csv
+      hash: md5
+      md5: 9fc396f9c071792669829460da6a4251
+      size: 109389
+    - path: data/processed/x_train.csv
+      hash: md5
+      md5: 22074f718e7199b63a421d5c06155196
+      size: 435741
+    - path: data/processed/y_test.csv
+      hash: md5
+      md5: f04097c26f4e8ea4d1c228889fa78588
+      size: 2066
+    - path: data/processed/y_train.csv
+      hash: md5
+      md5: cfff6ccfbff0260af904cddcc3603850
+      size: 8228
+    - path: src/ablation.py
+      hash: md5
+      md5: a0a86e6e830f8ab1ab0a9bc949e8dd93
+      size: 2007
+    - path: src/config.py
+      hash: md5
+      md5: 4a8302c57a4d9d70126c16aa79c37a72
+      size: 2524
+    outs:
+    - path: reports/ablation_metrics.csv
+      hash: md5
+      md5: daea513f9b4d96e653ad23ab2e6f4b0e
+      size: 196

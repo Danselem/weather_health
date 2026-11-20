@@ -17,6 +17,8 @@ from sklearn.ensemble import (
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
 
 from src import logger
 
@@ -36,21 +38,23 @@ def classification_objective(
     """Objective function used by Hyperopt."""
 
     x_train, x_val, y_train, y_val = train_test_split(
-        x_train, y_train, test_size=0.2, random_state=seed
+        x_train, y_train, test_size=0.2, random_state=seed, stratify=y_train
     )
 
     if model_family == "random_forest":
-        model = RandomForestClassifier(**params)
+        classifier = RandomForestClassifier(**params)
     elif model_family == "gradient_boosting":
-        model = GradientBoostingClassifier(**params)
+        classifier = GradientBoostingClassifier(**params)
     elif model_family == "logistic_regression":
-        model = LogisticRegression(**params)
+        classifier = LogisticRegression(**params)
     elif model_family == "hist_gradient_boosting":
-        model = HistGradientBoostingClassifier(**params)
+        classifier = HistGradientBoostingClassifier(**params)
     elif model_family == "lightgbm":
-        model = LGBMClassifier(**params)
+        classifier = LGBMClassifier(**params)
     else:
         raise ValueError(f"Unsupported model_family '{model_family}'")
+
+    model = Pipeline([("scaler", MinMaxScaler()), ("clf", classifier)])
 
     with mlflow.start_run(nested=True):  # nested=True
         mlflow.log_params(params)
@@ -79,7 +83,6 @@ def classification_objective(
             "precision", float(precision_score(y_val, y_pred, average="weighted"))
         )
 
-        #        # Log the model
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",

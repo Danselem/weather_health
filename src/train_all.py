@@ -13,11 +13,12 @@ from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
-from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf
 from prefect import flow
+from sklearn.model_selection import train_test_split
 
 from src import logger
+from src.config import load_config
 from src.utils.mlflow_manager import (
     create_mlflow_experiment,
     register_best_model,
@@ -55,20 +56,11 @@ class MultiModelTrainer:
         return Path(__file__).parent.parent / "config"
 
     def _load_config(self) -> None:
-        config_dir = Path(self.config_path)
-        if not config_dir.is_absolute():
-            config_dir = Path.cwd() / config_dir
-
-        with initialize_config_dir(
-            version_base=None,
-            config_dir=str(config_dir.resolve()),
-        ):
-            self.cfg = compose(config_name="config", overrides=self.overrides)
-            OmegaConf.resolve(self.cfg)
+        self.cfg = load_config(self.config_path, self.overrides)
 
         self.modeling_params = self.cfg.modeling
 
-        env_name = self.cfg.env.env.name
+        env_name = self.cfg.env.name
         if env_name == "staging":
             self.modeling_params.n_trials = 3
         elif env_name == "prod":
@@ -80,7 +72,25 @@ class MultiModelTrainer:
         self.y_train = pd.read_csv(Path(data_paths["y_train_path"])).values.ravel()
         self.x_test = pd.read_csv(Path(data_paths["x_test_path"]))
         self.y_test = pd.read_csv(Path(data_paths["y_test_path"])).values.ravel()
-        logger.info("Training and test data loaded successfully.")
+
+        split_cfg = self.cfg.get("data_split", {})
+        validation_size = (
+            split_cfg.get("validation_size", 0.15) if split_cfg else 0.15
+        )
+        random_state = split_cfg.get("random_state", 1024) if split_cfg else 1024
+        self.x_fit, self.x_val, self.y_fit, self.y_val = train_test_split(
+            self.x_train,
+            self.y_train,
+            test_size=validation_size,
+            random_state=random_state,
+            stratify=self.y_train,
+        )
+        logger.info(
+            "Train/validation/test sizes: %d/%d/%d",
+            len(self.x_fit),
+            len(self.x_val),
+            len(self.x_test),
+        )
 
     def _train_single_model(self, model_family: str) -> dict[str, Any]:
         loss_function = self.modeling_params.loss_function
@@ -91,8 +101,8 @@ class MultiModelTrainer:
         create_mlflow_experiment(f"{model_family}_experiment")
 
         best_params = classification_optimization(
-            x_train=self.x_train,
-            y_train=self.y_train,
+            x_train=self.x_fit,
+            y_train=self.y_fit,
             model_family=model_family,
             loss_function=loss_function,
             num_trials=n_trials,
@@ -101,10 +111,10 @@ class MultiModelTrainer:
 
         register_func = REGISTER_FUNCTIONS[model_family]
         register_func(
-            x_train=self.x_train,
-            y_train=self.y_train,
-            x_val=self.x_test,
-            y_val=self.y_test,
+            x_train=self.x_fit,
+            y_train=self.y_fit,
+            x_val=self.x_val,
+            y_val=self.y_val,
             best_params=best_params,
         )
 
@@ -114,7 +124,7 @@ class MultiModelTrainer:
 
     @flow(name="train_all_models", retries=3, retry_delay_seconds=10, log_prints=True)
     def run(self) -> None:
-        env_name = self.cfg.env.env.name
+        env_name = self.cfg.env.name
         logger.info(f"Multi-model training for environment: {env_name}")
         logger.info(f"Training {len(MODEL_FAMILIES)} models: {MODEL_FAMILIES}")
 
@@ -137,7 +147,9 @@ def main(config_path: str | None = None, overrides: list | None = None) -> None:
         overrides = [
             arg
             for arg in sys.argv[1:]
-            if arg.startswith(("model=", "env=", "n_trials=", "loss_function=", "modeling."))
+            if arg.startswith(
+                ("model=", "env=", "n_trials=", "loss_function=", "modeling.", "artifacts.", "data.")
+            )
         ]
 
     trainer = MultiModelTrainer(config_path=config_path, overrides=overrides)

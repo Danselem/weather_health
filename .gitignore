@@ -189,9 +189,20 @@ logs
 tff
 
 # DVC (Data Version Control)
-.dvc/
-.dvcignore
-*.dvc
+.dvc/cache/
+.dvc/tmp/
+.dvc/plots/
+
+# DVC-managed outputs (tracked via .dvc pointer files)
+/data/interim/
+/data/processed/
+/models/
+/reports/predictions.csv
+/reports/confusion_matrix.png
+/reports/feature_importance.png
+/reports/classification_report.csv
+/reports/data_validation.json
+/reports/ablation_metrics.csv
 
 # Terraform local files inside infra folder
 infra/.terraform/
@@ -204,3 +215,7 @@ infra/crash.log
 infra/override.tf
 infra/override.tf.json
 infra/.terraform.lock.hcl
+
+# MLflow local artifacts
+mlruns/
+mlflow.db

@@ -4,6 +4,8 @@
 # Use with: python train.py model=random_forest
 # =============================================================================
 
+model_family: random_forest
+
 model:
   name: random_forest
   description: Random Forest ensemble classifier

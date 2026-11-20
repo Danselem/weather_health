@@ -6,8 +6,9 @@
 # =============================================================================
 
 defaults:
-  - env: dev
   - _self_
+  - env: dev
+  - model: logistic_regression
 
 # =============================================================================
 # Data Configuration
@@ -29,6 +30,7 @@ artifacts:
   model_path: models/weather_disease_model.pkl
   scaler_path: data/processed/minmax_scaler.pkl
   label_encoder_path: data/processed/label_encoder.pkl
+  feature_order_path: data/processed/feature_order.json
 
 # =============================================================================
 # Model Configuration (default - can be overridden by model config)
@@ -61,14 +63,16 @@ reports:
   predictions_path: reports/predictions.csv
   feature_importance_path: reports/feature_importance.png
   confusion_matrix_path: reports/confusion_matrix.png
-  classification_report_path: reports/classification_report.txt
+  classification_report_path: reports/classification_report.csv
   evaluation_metrics_path: reports/evaluation_metrics.csv
+  ablation_metrics_path: reports/ablation_metrics.csv
+  data_validation_path: reports/data_validation.json
 
 # =============================================================================
 # MLflow Configuration
 # =============================================================================
 mlflow:
-  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}
   experiment_name: weather_health_experiment
   model_registry: ModelRegistry
 
@@ -85,6 +89,7 @@ prefect:
 # =============================================================================
 data_split:
   test_size: 0.2
+  validation_size: 0.15
   random_state: 1024
   stratify: true
 

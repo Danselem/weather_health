@@ -1,80 +1,150 @@
 name: CI
 
+# Required repository secrets for data-backed jobs:
+#   DAGSHUB_USER, DAGSHUB_TOKEN  (DVC remote access)
+# Jobs fail without them by design: no data, no gate.
+
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.10"
+
 jobs:
-  lint:
-    name: Lint
+  quality:
+    name: Lint and Type Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.10"
-          enable-cache: false
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Run Ruff linter
-        run: uv run ruff check src/ tests/
-
-  type-check:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.10"
-          enable-cache: false
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Run MyPy type checker
-        run: uv run mypy src/ --ignore-missing-imports --no-error-summary || true
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Ruff
+        run: uv run ruff check src service tests
+      - name: Mypy (core modules)
+        run: >
+          uv run mypy
+          src/config.py src/validate_data.py src/ablation.py src/evaluate.py
+          src/check_metrics.py src/utils/mlflow_manager.py service/app.py
+          --ignore-missing-imports --no-error-summary
 
   test:
-    name: Test
+    name: Tests and Coverage
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.10"
-          enable-cache: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Pull DVC data
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc remote modify origin --local auth basic
+          uv run dvc remote modify origin --local user "$DAGSHUB_USER"
+          uv run dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          uv run dvc pull
+      - name: Pytest
+        run: >
+          uv run pytest
+          --cov=src --cov-report=term --cov-report=xml
+          --cov-fail-under=35
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
 
-      - name: Install dependencies
-        run: uv sync
+  pipeline:
+    name: DVC Reproduce and Quality Gate
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Pull DVC data
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc remote modify origin --local auth basic
+          uv run dvc remote modify origin --local user "$DAGSHUB_USER"
+          uv run dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          uv run dvc pull
+      - name: Reproduce pipeline
+        run: uv run dvc repro
+      - name: Quality gate
+        run: uv run python -m src.check_metrics
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: model-artifacts
+          path: |
+            models/weather_disease_model.pkl
+            data/processed/feature_order.json
+            data/processed/label_encoder.pkl
+            sample_input.json
+            reports/evaluation_metrics.csv
+            reports/ablation_metrics.csv
+            reports/data_validation.json
 
-      - name: Run pytest
-        run: echo "Tests require Prefect server - skipping in CI" && exit 0
+  docker:
+    name: Docker Build and Smoke Test
+    runs-on: ubuntu-latest
+    needs: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+      - name: Build image
+        run: docker build -t weather-health:ci .
+      - name: Run container
+        run: |
+          docker run -d --name weather-health-ci -p 18080:8080 weather-health:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:18080/ready && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:18080/health
+          curl -fsS -X POST http://127.0.0.1:18080/predict \
+            -H 'Content-Type: application/json' --data @sample_input.json
+          docker rm -f weather-health-ci
 
-  docker-build:
-    name: Docker Build
+  terraform:
+    name: Terraform Format and Validate
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Build Docker image
-        run: docker build -t weather-health:latest .
-
-      - name: Run Hadolint
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+      - name: Format
+        run: terraform fmt -check -recursive infra-aws infra-gcp
+      - name: Validate AWS
         run: |
-          docker run --rm -i hadolint/hadolint < Dockerfile || true
-        continue-on-error: true
+          cd infra-aws
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: Validate GCP
+        run: |
+          cd infra-gcp
+          terraform init -backend=false -input=false
+          terraform validate

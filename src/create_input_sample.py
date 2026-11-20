@@ -1,36 +1,33 @@
 import json
 import pickle
-from pathlib import Path
 
 import pandas as pd
+import yaml
+
+DROP_COLUMNS = ["shivering", "asthma_history", "high_cholesterol", "diabetes", "obesity"]
 
 
 def main():
-    """Sample one training row, scale it, and save both raw and scaled versions."""
-    data_path = Path("data/processed/x_train.csv")
-    df_train = pd.read_csv(data_path)
-    sample = df_train.sample(1)  # DataFrame, 1 row
+    """Sample one raw training row and save raw + transformed JSON payloads."""
+    params = yaml.safe_load(open("params.yaml", encoding="utf-8"))
+    raw = pd.read_csv(params["data"]["raw_data_path"])
+    target = params["data"]["target_col"]
 
-    # ── Load fitted MinMaxScaler ───────────────────────────────────────────────
-    with open(Path("data/processed/minmax_scaler.pkl"), "rb") as f_in:
-        minmax_scaler = pickle.load(f_in)
+    features = raw.drop(columns=[target] + DROP_COLUMNS, errors="ignore")
+    sample = features.sample(1, random_state=1024)
 
-    # ── Scale using a DF to keep feature names and avoid the warning ───────────
-    sample_scaled_df = pd.DataFrame(
-        minmax_scaler.transform(sample),  # 2‑D array
-        columns=minmax_scaler.feature_names_in_,
+    with open(params["artifacts"]["scaler_path"], "rb") as file:
+        scaler = pickle.load(file)
+
+    scaled = pd.DataFrame(
+        scaler.transform(sample), columns=scaler.feature_names_in_
     )
 
-    # ── Build dictionaries -----------------------------------------------------
-    raw_dict = sample.iloc[0].to_dict()
-    transformed_dict = sample_scaled_df.iloc[0].to_dict()
+    with open("sample_input.json", "w", encoding="utf-8") as file:
+        json.dump(sample.iloc[0].to_dict(), file)
 
-    # ── Save JSON files --------------------------------------------------------
-    with open("sample_input.json", "w", encoding="utf-8") as f:
-        json.dump(raw_dict, f)
-
-    with open("sample_input_transformed.json", "w", encoding="utf-8") as f:
-        json.dump(transformed_dict, f)
+    with open("sample_input_transformed.json", "w", encoding="utf-8") as file:
+        json.dump(scaled.iloc[0].to_dict(), file)
 
 
 if __name__ == "__main__":

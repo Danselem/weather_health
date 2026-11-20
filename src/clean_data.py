@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
-from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 from prefect import flow, task
 
 from src import logger
+from src.config import load_config
 
 load_dotenv()
 
@@ -36,6 +36,7 @@ class DataCleaner:
         input_path: str | Path | None = None,
         output_path: str | Path | None = None,
         config_path: str | None = None,
+        overrides: list[str] | None = None,
     ) -> None:
         """
         Initialize the DataCleaner with Hydra configuration.
@@ -45,6 +46,7 @@ class DataCleaner:
             output_path: File path to save the cleaned Parquet data (optional - uses config).
             config_path: Path to Hydra config directory (optional).
         """
+        self.overrides = overrides or []
         self._load_config(config_path)
 
         data_cfg = OmegaConf.to_container(self.cfg.data, resolve=True)
@@ -52,20 +54,12 @@ class DataCleaner:
         self.input_path: Path = Path(input_path) if input_path else Path(data_cfg["raw_data_path"])
         self.output_path: Path = Path(output_path) if output_path else Path(data_cfg["interim_data_path"])
         self.data: pd.DataFrame | None = None
+        self._cleaned = False
 
-        logger.info(f"DataCleaner initialized for environment: {self.cfg.env.env.name}")
+        logger.info(f"DataCleaner initialized for environment: {self.cfg.env.name}")
 
     def _load_config(self, config_path: str | None) -> None:
-        config_dir = Path(config_path) if config_path else self._get_config_dir()
-        if not config_dir.is_absolute():
-            config_dir = Path.cwd() / config_dir
-
-        with initialize_config_dir(
-            version_base=None,
-            config_dir=str(config_dir.resolve()),
-        ):
-            self.cfg = compose(config_name="config")
-            OmegaConf.resolve(self.cfg)
+        self.cfg = load_config(config_path or self._get_config_dir(), self.overrides)
 
     def _get_config_dir(self) -> Path:
         return Path(__file__).parent.parent / "config"
@@ -133,11 +127,12 @@ class DataCleaner:
         logger.info("Duplicated rows: %d", duplicated)
 
         self.data.drop_duplicates(inplace=True)
+        self._cleaned = True
         logger.info("Data shape after dropping duplicates: %s", self.data.shape)
 
     def save_data(self) -> None:
         """Save the cleaned DataFrame to a Parquet file using pyarrow."""
-        if self.data is None:
+        if self.data is None or not self._cleaned:
             raise ValueError("No data to save. Make sure cleaning has been run.")
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,7 +148,7 @@ class DataCleaner:
         - Clean data
         - Save cleaned data
         """
-        logger.info(f"Starting data cleaning pipeline (env: {self.cfg.env.env.name})")
+        logger.info(f"Starting data cleaning pipeline (env: {self.cfg.env.name})")
         self.load_data()
         self.add_uuid_column(exclude_cols=["prognosis"])
         self.clean_data()
@@ -161,5 +156,8 @@ class DataCleaner:
 
 
 if __name__ == "__main__":
-    cleaner = DataCleaner()
+    import sys
+
+    overrides = [arg for arg in sys.argv[1:] if "=" in arg]
+    cleaner = DataCleaner(overrides=overrides)
     cleaner.run()

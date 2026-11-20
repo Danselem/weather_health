@@ -76,6 +76,7 @@ class TestWeatherDiseasePreprocessor:
         from src.transform import WeatherDiseasePreprocessor
 
         processor = WeatherDiseasePreprocessor()
+        processor.data_split_cfg["stratify"] = False
         df = pd.DataFrame(
             {
                 "feature1": [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -96,7 +97,7 @@ class TestWeatherDiseasePreprocessor:
         processor = WeatherDiseasePreprocessor()
         y = pd.Series(["Flu", "Malaria", "Dengue", "Flu", "Malaria"], name="prognosis")
 
-        encoded = processor.encode_labels(y)
+        encoded = processor.encode_labels(y, fit=True)
 
         assert len(encoded) == 5
         assert encoded.dtype in [int, "int64"]

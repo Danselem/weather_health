@@ -1,5 +1,6 @@
 """Unit tests for utility functions."""
 
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -54,11 +55,14 @@ class TestOptimisation:
 class TestPlotOutputs:
     """Tests for plotting utility functions."""
 
-    def test_plot_confusion_matrix_runs(self):
+    def test_plot_confusion_matrix_runs(self, tmp_path, monkeypatch):
         """Test that plot_confusion_matrix executes without error."""
         from src.utils.plotoutputs import plot_confusion_matrix
 
+        encoder_path = Path("data/processed/label_encoder.pkl").resolve()
+        monkeypatch.chdir(tmp_path)
         y_true = np.array([0, 1, 0, 1, 0, 1])
         y_pred = np.array([0, 1, 1, 1, 0, 0])
 
-        plot_confusion_matrix(y_true, y_pred, "test")
+        plot_confusion_matrix(y_true, y_pred, "test", label_encoder_path=encoder_path)
+        assert (tmp_path / "test_confusion_matrix.png").exists()

@@ -4,6 +4,8 @@
 # Use with: python train.py model=logistic_regression
 # =============================================================================
 
+model_family: logistic_regression
+
 model:
   name: logistic_regression
   description: Logistic Regression classifier with L2 regularization

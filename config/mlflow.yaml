@@ -7,7 +7,7 @@
 # =============================================================================
 tracking:
   # URI - can be overridden by env var MLFLOW_TRACKING_URI
-  uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  uri: ${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}
   
   # Experiment
   experiment:
@@ -34,7 +34,7 @@ tracking:
 # =============================================================================
 registry:
   # Model registry URI (same as tracking)
-  uri: ${oc.env:MLFLOW_TRACKING_URI,https://dagshub.com/Danselem/weather_health.mlflow}
+  uri: ${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}
   
   # Model stages
   stages:

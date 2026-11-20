@@ -1,10 +1,12 @@
 import os
 import random
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
+import pandas as pd
 from dotenv import load_dotenv
 from lightgbm import LGBMClassifier
 from mlflow.models.signature import infer_signature
@@ -24,6 +26,8 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
 
 from src import logger
 from src.utils.plotoutputs import plot_confusion_matrix
@@ -40,23 +44,15 @@ DAGSHUB_REPO = os.getenv("DAGSHUB_REPO")
 
 
 def config_mlflow() -> None:
-    if (
-        DAGSHUB_REPO_OWNER is None
-        or DAGSHUB_REPO is None
-        or os.getenv("DAGSHUB_TOKEN") is None
-    ):
-        raise ValueError(
-            "DAGSHUB_REPO_OWNER, DAGSHUB_REPO, and DAGSHUB_TOKEN environment variables must be set."
-        )
-    os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_REPO_OWNER
-    dagshub_token = os.getenv("DAGSHUB_TOKEN")
-    if dagshub_token is None:
-        raise ValueError("DAGSHUB_TOKEN environment variable must be set.")
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
-    mlflow.set_tracking_uri(
-        f"https://dagshub.com/{DAGSHUB_REPO_OWNER}/{DAGSHUB_REPO}.mlflow"
-    )
-    # mlflow.set_tag("developer", "daniel")
+    """Configure MLflow; local SQLite is the default so the demo works offline."""
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+    mlflow.set_tracking_uri(tracking_uri)
+
+    if "dagshub.com" in tracking_uri:
+        if DAGSHUB_REPO_OWNER is None or os.getenv("DAGSHUB_TOKEN") is None:
+            raise ValueError("DagsHub URL requires DAGSHUB_REPO_OWNER and DAGSHUB_TOKEN.")
+        os.environ["MLFLOW_TRACKING_USERNAME"] = DAGSHUB_REPO_OWNER
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.environ["DAGSHUB_TOKEN"]
 
 
 @task(
@@ -78,16 +74,17 @@ def create_mlflow_experiment(experiment_name: str) -> None:
 
 
 def _evaluate_and_log_model(
-    model,
+    model: Any,
     model_name: str,
     best_params: dict,
     x_train: ArrayLike,
     y_train: ArrayLike,
     x_val: ArrayLike,
     y_val: ArrayLike,
-    nested=False,
+    nested: bool = False,
 ) -> str:
 
+    model = Pipeline([("scaler", MinMaxScaler()), ("clf", model)])
     model.fit(x_train, y_train)
 
     train_preds = model.predict(x_train)
@@ -141,17 +138,12 @@ def _evaluate_and_log_model(
             )
 
         signature = infer_signature(x_val, val_preds)
-        input_example = x_val.iloc[:1]
+        input_example = pd.DataFrame(x_val).iloc[:1]
 
-        # Save model
-        if model_name == "LGBMClassifier":
-            mlflow.lightgbm.log_model(
-                model, "model", signature=signature, input_example=input_example
-            )  # type: ignore
-        else:
-            mlflow.sklearn.log_model(
-                model, "model", signature=signature, input_example=input_example
-            )  # type: ignore
+        # The registered artifact is a complete preprocessing + model pipeline.
+        mlflow.sklearn.log_model(
+            model, "model", signature=signature, input_example=input_example
+        )  # type: ignore
 
         # Confusion matrices
         plt.switch_backend("agg")
@@ -168,7 +160,7 @@ def _evaluate_and_log_model(
         if os.path.exists("dvc.yaml"):
             mlflow.log_artifact("dvc.yaml")
 
-        return run.info.run_id
+        return str(run.info.run_id)
 
 
 @task(name="register_random_forest", retries=3, retry_delay_seconds=10, log_prints=True)
@@ -229,7 +221,14 @@ def register_hist_gradient_boosting(
     """Register the Histogram Gradient Boosting model and evaluate it on the validation set"""
     model = HistGradientBoostingClassifier(**best_params, random_state=SEED)
     return _evaluate_and_log_model(
-        model, "HistGradientBoosting", best_params, x_train, y_train, nested=True
+        model,
+        "HistGradientBoosting",
+        best_params,
+        x_train,
+        y_train,
+        x_val,
+        y_val,
+        nested=True,
     )
 
 
@@ -295,15 +294,18 @@ def register_best_model(model_family: str, loss_function: str) -> None:
     if experiment is None:
         raise ValueError(f"Experiment '{experiment_name}' not found")
 
-    runs = client.search_runs(
+    all_runs = client.search_runs(
         experiment_ids=[experiment.experiment_id],
-        order_by=[f"metrics.{loss_function} ASC"],
+        order_by=["metrics.loss ASC"],
     )
+    # The optimization parent run has no loss metric; only trial runs do.
+    runs = [run for run in all_runs if run.data.metrics.get("loss") is not None]
 
     if not runs:
-        raise ValueError("No runs found for registration")
+        raise ValueError("No runs with a 'loss' metric found for registration")
 
-    logger.info(f"Found {len(runs)} runs in experiment '{experiment.name}'")
+    logger.info(f"Found {len(runs)} candidate runs in experiment '{experiment.name}'")
+    logger.info(f"Selected run loss={runs[0].data.metrics['loss']:.4f} (lower is better)")
 
     best_run = runs[0]
     run_id = best_run.info.run_id
@@ -338,18 +340,34 @@ def register_best_model(model_family: str, loss_function: str) -> None:
             ),
         )
 
+        # A single mutable pointer for deployment; never use "latest version".
+        client.set_registered_model_alias(
+            name=model_name, alias="champion", version=result.version
+        )
+        logger.info(f"Promoted {model_name} v{result.version} to @champion")
         logger.info(f"Tags and description added to model version {result.version}")
 
     except Exception as e:
         logger.error(f"Failed to register or tag model: {e}")
+        raise
 
 
 @task(name="load_model_by_name", retries=3, retry_delay_seconds=10, log_prints=True)
-def load_model_by_name(model_name: str):
+def load_model_by_name(model_name: str) -> Any:
     config_mlflow()
     client = MlflowClient()
-    registered_model = client.get_registered_model(model_name)
-    if not registered_model.latest_versions:
-        raise ValueError(f"No versions found for registered model '{model_name}'.")
-    run_id = registered_model.latest_versions[-1].run_id
-    return mlflow.pyfunc.load_model(f"runs:/{run_id}/model")
+    try:
+        client.get_model_version_by_alias(model_name, "champion")
+        model_uri = f"models:/{model_name}@champion"
+    except Exception:
+        versions = client.search_model_versions(f"name='{model_name}'")
+        if not versions:
+            raise ValueError(f"No versions found for registered model '{model_name}'.")
+        latest = max(versions, key=lambda v: int(v.version))
+        model_uri = f"models:/{model_name}/{latest.version}"
+    logger.info(f"Loading model from {model_uri}")
+    try:
+        return mlflow.sklearn.load_model(model_uri)
+    except Exception:
+        # Older registered artifacts were logged with the pyfunc flavor.
+        return mlflow.pyfunc.load_model(model_uri)

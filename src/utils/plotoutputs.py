@@ -9,7 +9,7 @@ import pickle
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import yaml
+import yaml  # type: ignore[import-untyped]
 from numpy.typing import ArrayLike
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelEncoder

@@ -5,8 +5,10 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt --target /opt/python
 
 # Copy model & code
-COPY weather_disease_model.pkl minmax_scaler.pkl label_encoder.pkl /opt/model/
-COPY predictor.py ${LAMBDA_TASK_ROOT}
+COPY weather_disease_model.pkl label_encoder.pkl feature_order.json /opt/model/
+COPY lambda_function.py ${LAMBDA_TASK_ROOT}
+
+ENV MODEL_DIR=/opt/model
 
 # Set the handler
-CMD ["predictor.handler"]
+CMD ["lambda_function.lambda_handler"]

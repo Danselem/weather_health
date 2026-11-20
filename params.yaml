@@ -1,4 +1,5 @@
 artifacts:
+  feature_order_path: data/processed/feature_order.json
   label_encoder_path: data/processed/label_encoder.pkl
   model_path: models/weather_disease_model.pkl
   scaler_path: data/processed/minmax_scaler.pkl
@@ -23,8 +24,11 @@ modeling:
   n_trials: 5
   objective_function: Logloss
 reports:
-  classification_report_path: reports/classification_report.txt
+  ablation_metrics_path: reports/ablation_metrics.csv
+  classification_report_path: reports/classification_report.csv
   confusion_matrix_path: reports/confusion_matrix.png
+  data_validation_path: reports/data_validation.json
+  evaluation_metrics_path: reports/evaluation_metrics.csv
   feature_importance_path: reports/feature_importance.png
   model_metrics_path: reports/model_metrics.csv
   predictions_path: reports/predictions.csv

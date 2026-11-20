@@ -1,0 +1,6 @@
+[core]
+    remote = origin
+    autostage = true
+
+[remote "origin"]
+    url = https://dagshub.com/Danselem/weather_health.dvc

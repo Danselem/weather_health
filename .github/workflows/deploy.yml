@@ -1,0 +1,141 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        default: dev
+        options: [dev, staging, prod]
+      image_tag:
+        description: Image tag override (empty uses the commit SHA)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'weather-health' }}
+
+jobs:
+  build:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      model_version: ${{ steps.meta.outputs.model_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.10"
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Pull DVC artifacts
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc remote modify origin --local auth basic
+          uv run dvc remote modify origin --local user "$DAGSHUB_USER"
+          uv run dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          uv run dvc pull
+
+      - name: Fetch champion from MLflow
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          DAGSHUB_REPO_OWNER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_REPO: ${{ vars.DAGSHUB_REPO || 'weather_health' }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: uv run python -m src.fetch_best_model lightgbm
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        id: meta
+        run: |
+          MODEL_VERSION=$(jq -r '.version // "unknown"' models/model_metadata.json)
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then TAG="${GITHUB_SHA::12}"; fi
+          IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:${TAG}"
+          docker build --build-arg MODEL_VERSION="$MODEL_VERSION" -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "model_version=$MODEL_VERSION" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Register task definition with the new image
+        id: task
+        env:
+          ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_DEFINITION" \
+            --query 'taskDefinition' --output json)
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                   .compatibilities, .registeredAt, .registeredBy)')
+          REVISION=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query 'taskDefinition.revision' --output text)
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Update ECS service
+        env:
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+          ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
+          REVISION: ${{ steps.task.outputs.revision }}
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "${ECS_TASK_DEFINITION}:${REVISION}" \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+
+      - name: Smoke test
+        if: vars.ALB_DNS_NAME != ''
+        env:
+          ALB_DNS_NAME: ${{ vars.ALB_DNS_NAME }}
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS "http://$ALB_DNS_NAME/ready" && break
+            sleep 10
+          done
+          curl -fsS "http://$ALB_DNS_NAME/health"
+          curl -fsS -X POST "http://$ALB_DNS_NAME/predict" \
+            -H 'Content-Type: application/json' --data @sample_input.json

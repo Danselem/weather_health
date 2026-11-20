@@ -1,27 +1,26 @@
 import json
+import os
 import pickle
+from pathlib import Path
 
 import pandas as pd
 
-MODEL = pickle.load(open("/opt/model/weather_disease_model.pkl", "rb"))
-SCALER = pickle.load(open("/opt/model/minmax_scaler.pkl", "rb"))
-ENCODER = pickle.load(open("/opt/model/label_encoder.pkl", "rb"))
-FEATURE_ORDER = list(SCALER.feature_names_in_)
+BASE = Path(os.getenv("MODEL_DIR", "."))
+MODEL = pickle.load(open(BASE / "weather_disease_model.pkl", "rb"))
+ENCODER = pickle.load(open(BASE / "label_encoder.pkl", "rb"))
+FEATURE_ORDER = json.load(open(BASE / "feature_order.json", encoding="utf-8"))
 
 
 def lambda_handler(event, context):
-    # Kinesis delivers a batch; loop through records
     outputs = []
-    for rec in event["Records"]:
-        payload = json.loads(rec["kinesis"]["data"])  # base64 auto‑decoded
+    for record in event["Records"]:
+        payload = json.loads(record["kinesis"]["data"])
         df = pd.DataFrame([[payload[c] for c in FEATURE_ORDER]], columns=FEATURE_ORDER)
-        scaled = pd.DataFrame(SCALER.transform(df), columns=FEATURE_ORDER)
-        pred_code = MODEL.predict(scaled)[0]
+        pred_code = MODEL.predict(df)[0]
         outputs.append(
             {
                 "uuid": payload.get("uuid"),
                 "prediction": ENCODER.inverse_transform([pred_code])[0],
             }
         )
-    # push somewhere or just return
     return {"predictions": outputs}

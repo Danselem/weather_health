@@ -10,25 +10,38 @@ stages:
     cmd: uv run -m src.clean_data
     deps:
       - src/clean_data.py
+      - src/config.py
+      - config
       - data/raw/Weather-related disease prediction.csv
     params:
       - data.raw_data_path
       - data.interim_data_path
     outs:
       - data/interim/weather_disease.parquet
-    metrics:
-      - reports/eda_outputs/weather-health-eda_statistics.csv:
-          cache: false
+
+  validate:
+    cmd: uv run -m src.validate_data
+    deps:
+      - src/validate_data.py
+      - src/config.py
+      - config
+      - data/interim/weather_disease.parquet
+    outs:
+      - reports/data_validation.json
 
   transform:
     cmd: uv run -m src.transform
     deps:
       - src/transform.py
+      - src/config.py
+      - config
       - data/interim/weather_disease.parquet
+      - reports/data_validation.json
     params:
       - data
       - artifacts.scaler_path
       - artifacts.label_encoder_path
+      - artifacts.feature_order_path
     outs:
       - data/processed/x_train.csv
       - data/processed/y_train.csv
@@ -36,11 +49,14 @@ stages:
       - data/processed/y_test.csv
       - data/processed/minmax_scaler.pkl
       - data/processed/label_encoder.pkl
+      - data/processed/feature_order.json
 
   train:
-    cmd: uv run -m src.train
+    cmd: uv run -m src.train model=lightgbm
     deps:
       - src/train.py
+      - src/config.py
+      - config
       - src/utils/mlflow_manager.py
       - data/processed/x_train.csv
       - data/processed/y_train.csv
@@ -50,16 +66,13 @@ stages:
       - modeling
     outs:
       - models/weather_disease_model.pkl
-    metrics:
-      - reports/model_metrics.csv:
-          cache: false
-      - reports/classification_report.csv:
-          cache: false
 
   evaluate:
     cmd: uv run -m src.evaluate
     deps:
       - src/evaluate.py
+      - src/config.py
+      - params.yaml
       - models/weather_disease_model.pkl
       - data/processed/x_test.csv
       - data/processed/y_test.csv
@@ -67,6 +80,21 @@ stages:
       - reports/predictions.csv
       - reports/confusion_matrix.png
       - reports/feature_importance.png
+      - reports/classification_report.csv
     metrics:
       - reports/evaluation_metrics.csv:
           cache: false
+      - reports/model_metrics.csv:
+          cache: false
+  ablation:
+    cmd: uv run -m src.ablation
+    deps:
+      - src/ablation.py
+      - src/config.py
+      - config
+      - data/processed/x_train.csv
+      - data/processed/y_train.csv
+      - data/processed/x_test.csv
+      - data/processed/y_test.csv
+    outs:
+      - reports/ablation_metrics.csv

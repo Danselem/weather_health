@@ -15,8 +15,7 @@
 
 # Check if Prefect server is running
 prefect-check:
-	@curl -s http://127.0.0.1:4200/api/health > /dev/null 2>&1 || (echo "❌ Prefect server not running. Run 'make prefect' first." && exit 1)
-	@echo "✅ Prefect server is running"
+	@curl -s http://127.0.0.1:4200/api/health > /dev/null 2>&1 || echo "ℹ️  Prefect server not running; flows will use ephemeral mode (run 'make prefect' for the UI)."
 
 # Check if Docker is running
 docker-check:
@@ -65,15 +64,24 @@ clean-data:                  ## Clean raw data and save to parquet (src.clean_da
 clean-data-prod:             ## Clean data using production config
 	uv run -m src.clean_data env=prod
 
-transform:                   ## Preprocess data: split, scale, encode (src.transform module)
+validate-data:               ## Validate the cleaned dataset against its contract
+	uv run -m src.validate_data
+
+ablation:                    ## Compare weather-only, symptom-only, and full feature sets
+	uv run -m src.ablation
+
+check-metrics:               ## Fail if model metrics or data contract regress
+	uv run -m src.check_metrics
+
+transform:                   ## Preprocess data: split, encode, save raw features (src.transform module)
 	uv run -m src.transform 
 
 transform-prod:              ## Transform data using production config
 	uv run -m src.transform env=prod
 
-train:                       ## Train model with MLflow tracking (src.train module) - REQUIRES PREFECT
+train:                       ## Train model with MLflow tracking (use ENV=... MODEL=...)
 	@make prefect-check || exit 1
-	uv run -m src.train
+	uv run -m src.train $(if $(ENV),env=$(ENV),) $(if $(MODEL),model=$(MODEL),)
 
 train-lightgbm:            ## Train with LightGBM - REQUIRES PREFECT
 	@make prefect-check || exit 1
@@ -105,7 +113,7 @@ train-staging:               ## Train all models with staging config - REQUIRES 
 
 pipeline:                    ## Run full pipeline: EDA -> clean -> transform -> train - REQUIRES PREFECT
 	@make prefect-check || exit 1
-	uv run -m src.pipeline
+	uv run -m src.pipeline $(if $(ENV),env=$(ENV),) $(if $(MODEL),model=$(MODEL),)
 
 pipeline-prod:               ## Run full pipeline with production config - REQUIRES PREFECT
 	@make prefect-check || exit 1
@@ -121,8 +129,11 @@ sample:                      ## Create sample input JSON for API testing
 # Model Serving
 # -----------------------------------------------------------------------------
 
-serve_local:                 ## Run FastAPI server locally on port 8000
-	uv run -m src.serve_local
+serve_local:                 ## Run FastAPI server locally on port 8080
+	MODEL_PATH=models/weather_disease_model.pkl \
+	SCALER_PATH=data/processed/minmax_scaler.pkl \
+	ENCODER_PATH=data/processed/label_encoder.pkl \
+	uv run uvicorn service.app:app --host 127.0.0.1 --port 8080
 
 serve:                      ## Run model serving (production mode)
 	uv run -m src.serve
@@ -251,8 +262,8 @@ deployment:                ## Trigger a Prefect deployment run
 # Docker
 # -----------------------------------------------------------------------------
 
-build:                      ## Build Docker image from service/Dockerfile
-	docker build -t weather-health:v1.0 service/
+build:                      ## Build canonical Docker image from repository root
+	docker build -t weather-health:v1.0 .
 
 run:                        ## Run containerized service on port 8080
 	docker run -it --rm -p 8080:8080 weather-health:v1.0
@@ -343,8 +354,8 @@ aws-deploy:               ## Build and push to ECR and deploy to ECS
 	@ECR_URI=$$(aws ecr describe-repositories --region us-east-1 --repository-names weather-health --query 'repositories[0].repositoryUri' --output text); \
 	aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$${ECR_URI%/*}"; \
 	docker tag weather-health:latest "$${ECR_URI}:v1"; \
-	docker push "$${ECR_URI}:v1"
-	@echo "=== Step 4: Update ECS service with new image ==="
+	docker push "$${ECR_URI}:v1"; \
+	echo "=== Step 4: Update ECS service with new image ==="; \
 	cd infra-aws && terraform apply -var-file=environments/prod/terraform.tfvars -var "container_image=$${ECR_URI}:v1" -auto-approve -lock=false
 	@echo "=== Deployment complete! ==="
 
@@ -378,3 +389,10 @@ gcp-deploy:              ## Deploy to GCP Artifact Registry + Cloud Run
 
 gcp-destroy:             ## Destroy GCP infrastructure
 	cd infra-gcp && terraform destroy -var-file=environments/prod/terraform.tfvars -auto-approve
+
+# -----------------------------------------------------------------------------
+# Deployment rollback
+# -----------------------------------------------------------------------------
+
+rollback:                    ## Roll back ECS (use CLUSTER=... SERVICE=... TASK_FAMILY=... REVISION=...)
+	./scripts/rollback.sh $(CLUSTER) $(SERVICE) $(TASK_FAMILY) $(REVISION)

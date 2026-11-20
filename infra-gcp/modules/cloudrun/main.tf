@@ -167,7 +167,3 @@ output "service_url" {
   value       = google_cloud_run_service.this.status[0].url
 }
 
-output "service_arn" {
-  description = "Cloud Run service ARN"
-  value       = google_cloud_run_service.this.arn
-}

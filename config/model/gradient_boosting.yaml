@@ -4,6 +4,8 @@
 # Use with: python train.py model=gradient_boosting
 # =============================================================================
 
+model_family: gradient_boosting
+
 model:
   name: gradient_boosting
   description: Gradient Boosting classifier

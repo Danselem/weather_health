@@ -3,5 +3,7 @@ uvicorn
 pandas
 scikit-learn
 numpy
+mlflow==2.22.0
+lightgbm==4.6.0
 python-dotenv
 gunicorn

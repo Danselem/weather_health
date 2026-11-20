@@ -4,6 +4,8 @@
 # Use with: python train.py model=lightgbm
 # =============================================================================
 
+model_family: lightgbm
+
 model:
   name: lightgbm
   description: LightGBM gradient boosting classifier

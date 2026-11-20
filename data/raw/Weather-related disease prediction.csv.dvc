@@ -1,0 +1,5 @@
+outs:
+- md5: 4aa51b2bb76b45b2000ce71517a0fd1e
+  size: 673781
+  hash: md5
+  path: Weather-related disease prediction.csv

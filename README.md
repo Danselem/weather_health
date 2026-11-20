@@ -7,7 +7,16 @@
 
 ## 📖 Project Description
 
-An end-to-end MLOps pipeline for predicting weather-sensitive diseases using machine learning. The project demonstrates professional DevOps practices including:
+An end-to-end MLOps pipeline for predicting weather-sensitive diseases using machine learning.
+
+**Scientific note:** the 45 features are mostly symptom indicators. A feature
+ablation shows weather-only reaches 37.6% accuracy (22.9% macro F1) while
+symptoms-only reaches 98.7% (98.8% macro F1). The model therefore learns
+symptom-to-disease patterns; weather adds little standalone signal. The
+dataset is synthetic and deterministic, so the headline metrics are not a
+claim about real clinical performance. See `MODEL_CARD.md`.
+
+The project demonstrates professional MLOps practices including:
 
 - **Configuration Management** with Hydra (multi-environment support)
 - **Data Versioning** with DVC
@@ -167,11 +176,15 @@ pytest tests/test_train.py -v
 | `make pipeline` | Run full ML pipeline |
 | `make train` | Train model |
 | `make test` | Run tests |
+| `make validate-data` | Validate the cleaned dataset contract |
+| `make ablation` | Compare weather-only, symptoms-only, and full features |
+| `make check-metrics` | Fail on model or data-contract regression |
 | `make quality_checks` | Run linters (ruff, black, mypy) |
 | `make dvc` | Run DVC pipeline |
 | `make build` | Build Docker image |
 | `make serve_local` | Run FastAPI locally |
 | `make start-monitoring` | Start Grafana/PostgreSQL |
+| `make rollback` | Roll ECS back to a task-definition revision |
 
 ### Prefect Server
 
@@ -245,12 +258,32 @@ make start-monitoring
 
 ## 🔄 CI/CD Pipeline
 
-```yaml
-# .github/workflows/ci.yml runs:
-1. Lint (ruff)
-2. Type Check (mypy)
-3. Test (pytest --cov)
-4. Docker Build
+`.github/workflows/ci.yml` gates every pull request:
+
+1. Ruff and mypy (core modules)
+2. `dvc pull` + pytest with coverage (`--cov-fail-under=35`)
+3. `dvc repro` + data contract + model quality gate (`src.check_metrics`)
+4. Docker build, container `/ready` + `/predict` smoke test
+5. `terraform fmt -check` and `terraform validate` for AWS and GCP
+
+Required CI/CD secrets: `DAGSHUB_USER`, `DAGSHUB_TOKEN` (DVC data),
+`AWS_ROLE_ARN`, `MLFLOW_TRACKING_URI`. Required repository variables:
+`ECS_CLUSTER`, `ECS_SERVICE`, `ECS_TASK_DEFINITION`, `ECR_REPOSITORY`,
+`ALB_DNS_NAME`, `AWS_REGION`.
+
+Deployment is manual and environment-gated:
+
+```bash
+# GitHub Actions -> Deploy -> Run workflow -> choose dev/staging/prod
+```
+
+It pulls DVC artifacts, fetches `lightgbm_best_model@champion` from MLflow,
+builds/pushes an image tagged with the model version, registers a new ECS task
+definition, updates the service, and runs `/ready` + `/predict` smoke tests.
+Rollback:
+
+```bash
+./scripts/rollback.sh <cluster> <service> <task-family> <revision>
 ```
 
 ---
