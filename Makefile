@@ -9,6 +9,13 @@
 #   - Docker must be running for monitoring commands
 # =============================================================================
 
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help:                        ## Show available commands
+	@echo "Weather-Health MLOps commands:"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-28s %s\n", $$1, $$2}'
+
 # -----------------------------------------------------------------------------
 # Service Checks (Internal)
 # -----------------------------------------------------------------------------

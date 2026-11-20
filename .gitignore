@@ -227,3 +227,7 @@ infra/.terraform.lock.hcl
 # MLflow local artifacts
 mlruns/
 mlflow.db
+
+# Local agent tooling
+.agents/
+skills-lock.json
