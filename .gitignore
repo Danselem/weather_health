@@ -196,6 +196,8 @@ tff
 # DVC-managed outputs (tracked via .dvc pointer files)
 /data/interim/
 /data/processed/
+/data/monitoring/
+/reports/monitoring/
 /models/
 /reports/predictions.csv
 /reports/confusion_matrix.png

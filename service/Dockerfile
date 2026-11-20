@@ -14,6 +14,7 @@ COPY service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY service/app.py .
+COPY src/prediction_store.py .
 COPY models/weather_disease_model.pkl .
 COPY data/processed/feature_order.json .
 COPY data/processed/label_encoder.pkl .

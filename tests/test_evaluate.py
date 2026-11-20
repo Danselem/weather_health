@@ -16,6 +16,7 @@ def test_evaluate_writes_metrics(tmp_path):
         confusion_matrix_path=str(tmp_path / "confusion_matrix.png"),
         classification_report_path=str(tmp_path / "classification_report.csv"),
         model_path=params["artifacts"]["model_path"],
+        reference_path=str(tmp_path / "reference.parquet"),
     )
     evaluator.model_metrics_path = tmp_path / "model_metrics.csv"
     evaluator.evaluation_metrics_path = tmp_path / "evaluation_metrics.csv"

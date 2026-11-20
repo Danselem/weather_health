@@ -77,6 +77,7 @@ stages:
       - data/processed/x_test.csv
       - data/processed/y_test.csv
     outs:
+      - data/processed/reference.parquet
       - reports/predictions.csv
       - reports/confusion_matrix.png
       - reports/feature_importance.png

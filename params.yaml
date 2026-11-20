@@ -1,5 +1,6 @@
 artifacts:
   feature_order_path: data/processed/feature_order.json
+  reference_path: data/processed/reference.parquet
   label_encoder_path: data/processed/label_encoder.pkl
   model_path: models/weather_disease_model.pkl
   scaler_path: data/processed/minmax_scaler.pkl
@@ -32,3 +33,10 @@ reports:
   feature_importance_path: reports/feature_importance.png
   model_metrics_path: reports/model_metrics.csv
   predictions_path: reports/predictions.csv
+
+# =============================================================================
+# Monitoring Configuration
+# =============================================================================
+monitoring:
+  reports_dir: reports/monitoring
+  drift_share_threshold: 0.5

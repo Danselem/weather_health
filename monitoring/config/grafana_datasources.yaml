@@ -5,6 +5,7 @@ apiVersion: 1
 # available in the database
 datasources:
   - name: PostgreSQL
+    uid: psql-monitoring
     type: postgres
     access: proxy
     url: db:5432

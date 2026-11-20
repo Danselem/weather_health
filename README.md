@@ -183,7 +183,10 @@ pytest tests/test_train.py -v
 | `make dvc` | Run DVC pipeline |
 | `make build` | Build Docker image |
 | `make serve_local` | Run FastAPI locally |
-| `make start-monitoring` | Start Grafana/PostgreSQL |
+| `make start-monitoring` | Start API + Grafana + PostgreSQL |
+| `make stop-monitoring` | Stop the monitoring stack |
+| `make observe` | Run the Evidently drift report |
+| `make drift-demo` | Simulate drift and run the gate |
 | `make rollback` | Roll ECS back to a task-definition revision |
 
 ### Prefect Server
@@ -246,13 +249,20 @@ make gcp-destroy
 ## 📊 Monitoring
 
 ```bash
-# Start monitoring stack
-make start-monitoring
+make start-monitoring   # API + PostgreSQL + Grafana + Adminer
+make observe            # Evidently: logged predictions vs pinned reference
+make drift-demo         # simulated drift + drift gate
 ```
 
+- **API**: http://localhost:8000
 - **Grafana**: http://localhost:3000
-- **Adminer**: http://localhost:8080
-- **Evidently**: Run `make observe` for drift detection
+- **Adminer**: http://localhost:8081
+- **Reports/alerts**: `reports/monitoring/`
+- **Runbook**: [`monitoring/README.md`](monitoring/README.md)
+
+The API logs predictions to SQLite by default, or PostgreSQL via
+`PREDICTION_DB_URL`. Drift reports use the pinned reference written by
+`src.evaluate` (`data/processed/reference.parquet`), not training data.
 
 ---
 
@@ -261,7 +271,7 @@ make start-monitoring
 `.github/workflows/ci.yml` gates every pull request:
 
 1. Ruff and mypy (core modules)
-2. `dvc pull` + pytest with coverage (`--cov-fail-under=35`)
+2. `dvc pull` + pytest with coverage (`--cov-fail-under=40`)
 3. `dvc repro` + data contract + model quality gate (`src.check_metrics`)
 4. Docker build, container `/ready` + `/predict` smoke test
 5. `terraform fmt -check` and `terraform validate` for AWS and GCP

@@ -142,12 +142,18 @@ serve:                      ## Run model serving (production mode)
 # Monitoring & Observability (Requires Docker)
 # -----------------------------------------------------------------------------
 
-observe:                     ## Run Evidently metrics for data drift detection
+observe:                     ## Run Evidently drift report (logged predictions vs reference)
 	uv run -m src.evidently_metrics
 
-start-monitoring:           ## Start Grafana + PostgreSQL via Docker Compose - REQUIRES DOCKER
+drift-demo:                  ## Generate simulated drift and run the drift gate
+	uv run -m src.simulate_drift
+
+start-monitoring:           ## Start API + Grafana + PostgreSQL via Docker Compose - REQUIRES DOCKER
 	@make docker-check || exit 1
-	cd monitoring && docker-compose up -d
+	cd monitoring && docker compose up -d --build
+
+stop-monitoring:            ## Stop the monitoring demo stack
+	cd monitoring && docker compose down
 
 # -----------------------------------------------------------------------------
 # Code Quality

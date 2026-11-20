@@ -31,6 +31,7 @@ artifacts:
   scaler_path: data/processed/minmax_scaler.pkl
   label_encoder_path: data/processed/label_encoder.pkl
   feature_order_path: data/processed/feature_order.json
+  reference_path: data/processed/reference.parquet
 
 # =============================================================================
 # Model Configuration (default - can be overridden by model config)
@@ -109,3 +110,9 @@ logging:
   format: "[%(asctime)s: %(levelname)s: %(module)s: %(message)s]"
   log_dir: logs
   log_file: running_logs.log
+# =============================================================================
+# Monitoring Configuration
+# =============================================================================
+monitoring:
+  reports_dir: reports/monitoring
+  drift_share_threshold: 0.5

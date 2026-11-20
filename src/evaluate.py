@@ -37,6 +37,7 @@ class WeatherDiseaseEvaluator:
         confusion_matrix_path: str,
         classification_report_path: str,
         model_path: str | None = None,
+        reference_path: str | None = None,
     ):
         self.x_test_path = Path(x_test_path)
         self.y_test_path = Path(y_test_path)
@@ -46,6 +47,7 @@ class WeatherDiseaseEvaluator:
         self.confusion_matrix_path = Path(confusion_matrix_path)
         self.classification_report_path = Path(classification_report_path)
         self.model_path = Path(model_path or "models/weather_disease_model.pkl")
+        self.reference_path = Path(reference_path or "data/processed/reference.parquet")
         self.model_metrics_path = Path("reports/model_metrics.csv")
         self.evaluation_metrics_path = Path("reports/evaluation_metrics.csv")
         self.output_dir = Path("reports")
@@ -88,6 +90,16 @@ class WeatherDiseaseEvaluator:
         pd.DataFrame({"y_true": y_true, "y_pred": y_pred}).to_csv(
             self.predictions_path, index=False
         )
+
+        # Pinned monitoring reference: raw features + model prediction.
+        reference = self.X_test.copy()
+        reference["prediction"] = y_pred
+        if hasattr(self.pipeline, "predict_proba"):
+            reference["prediction_confidence"] = self.pipeline.predict_proba(
+                self.X_test
+            ).max(axis=1)
+        reference.to_parquet(self.reference_path, index=False)
+        logger.info("Monitoring reference saved to %s", self.reference_path)
 
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
         pd.DataFrame(report).transpose().to_csv(self.classification_report_path)
@@ -171,6 +183,7 @@ def main() -> None:
         confusion_matrix_path=params["reports"]["confusion_matrix_path"],
         classification_report_path=params["reports"]["classification_report_path"],
         model_path=params["artifacts"]["model_path"],
+        reference_path=params["artifacts"]["reference_path"],
     )
     metrics = evaluator.evaluate()
     logger.info("Evaluation complete. Metrics: %s", metrics)

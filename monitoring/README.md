@@ -1,59 +1,81 @@
-# Monitoring example
+# Monitoring
 
-## Prerequisites
+This stack closes the production loop:
 
-You need following tools installed:
-- `docker`
-- `docker-compose` (included to Docker Desktop for Mac and Docker Desktop for Windows )
+1. The API logs every prediction (features, label, confidence, model version,
+   latency) to SQLite locally or PostgreSQL in the compose stack.
+2. `src/evidently_metrics.py` compares the current window with the pinned
+   reference (`data/processed/reference.parquet`) and writes drift metrics to
+   PostgreSQL.
+3. Grafana reads those metrics and shows drift, missing values, and failed
+   tests.
+4. A failed drift test writes an alert JSON under `reports/monitoring/` and can
+   fail a pipeline with `--fail-on-drift`.
 
-## Preparation
+## Start
 
-Note: all actions expected to be executed in repo folder.
-
-- Create virtual environment and activate it (eg. `python -m venv venv && source ./venv/bin/activate` or `conda create -n venv python=3.11 && conda activate venv`)
-- Install required packages `pip install -r requirements.txt`
-- Run `baseline_model_nyc_taxi_data.ipynb` for downloading datasets, training model and creating reference dataset 
-
-## Monitoring Example
-
-### Starting services
-
-To start all required services, execute:
 ```bash
-docker-compose up -d
+make start-monitoring
 ```
 
-It will start following services:
-- `db` - PostgreSQL, for storing metrics data
-- `adminer` - database management tool
-- `grafana` - Visual dashboarding tool 
+Services:
 
+| Service | URL |
+|---|---|
+| API | http://localhost:8000 |
+| Grafana | http://localhost:3000 (admin/admin) |
+| Adminer | http://localhost:8081 |
+| PostgreSQL | localhost:5432, database `test` |
 
-### Sending data
+Send traffic:
 
-To calculate evidently metrics with prefect and send them to database, execute:
 ```bash
-python evidently_metrics_calculation.py
+curl -s -X POST http://localhost:8000/predict \
+  -H 'Content-Type: application/json' --data @sample_input.json
 ```
 
-This script will simulate batch monitoring. Every 10 seconds it will collect data for a daily batch, calculate metrics and insert them into database. This metrics will be available in Grafana in preconfigured dashboard. 
+Generate a drifted window and run the gate:
 
-### Accsess dashboard
-
-- In your browser go to a `localhost:3000`
-The default username and password are `admin`
-
-- Then navigate to `General/Home` menu and click on `Home`.
-
-- In the folder `General` you will see `New Dashboard`. Click on it to access preconfigured dashboard.
-
-### Ad-hoc debugging
-
-Run `debugging_nyc_taxi_data.ipynb` to see how you can perform a debugging with help of Evidently `TestSuites` and `Reports`
-
-### Stopping services
-
-To stop all services, execute:
 ```bash
-docker-compose down
+PREDICTION_DB_URL=postgresql://postgres:example@localhost:5432/test \
+  uv run python -m src.simulate_drift
+```
+
+Compare live logged predictions with the reference:
+
+```bash
+PREDICTION_DB_URL=postgresql://postgres:example@localhost:5432/test \
+  uv run python -m src.evidently_metrics --fail-on-drift
+```
+
+Reports land in `reports/monitoring/`; Grafana panels read
+`monitoring_metrics` from PostgreSQL.
+
+## Delayed labels
+
+Send ground truth when it arrives:
+
+```bash
+curl -s -X POST http://localhost:8000/feedback \
+  -H 'Content-Type: application/json' \
+  -d '{"request_id":"<id from /predict>","true_label":"Heat Stroke"}'
+```
+
+## Triage playbook
+
+| Signal | Likely cause | Action |
+|---|---|---|
+| Many columns drift at once | Upstream schema/ETL change | Diff schema, fix pipeline, re-run report |
+| One column drifts | Pipeline bug or encoding change | Check deploy timestamps, roll back |
+| Prediction drift, features stable | Concept drift or label-pipeline issue | Inspect recent labels, consider retrain |
+| Drift only in serving data | Training-serving skew | Compare feature path, regenerate reference |
+| Calendar-aligned drift | Seasonality | Widen thresholds, document as known |
+| Genuine population shift | New segment/behavior | Retrain on the new window, re-run quality gate |
+
+Do not retrain before ruling out schema and pipeline bugs.
+
+## Stop
+
+```bash
+cd monitoring && docker compose down
 ```

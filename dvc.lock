@@ -5,8 +5,8 @@ stages:
     deps:
     - path: config
       hash: md5
-      md5: e576a46697d451514f649ee8d26b4c46.dir
-      size: 30424
+      md5: 57415c2670306da65a72351dfe944d4f.dir
+      size: 30738
       nfiles: 12
     - path: data/raw/Weather-related disease prediction.csv
       hash: md5
@@ -34,8 +34,8 @@ stages:
     deps:
     - path: config
       hash: md5
-      md5: e576a46697d451514f649ee8d26b4c46.dir
-      size: 30424
+      md5: 57415c2670306da65a72351dfe944d4f.dir
+      size: 30738
       nfiles: 12
     - path: data/interim/weather_disease.parquet
       hash: md5
@@ -59,8 +59,8 @@ stages:
     deps:
     - path: config
       hash: md5
-      md5: e576a46697d451514f649ee8d26b4c46.dir
-      size: 30424
+      md5: 57415c2670306da65a72351dfe944d4f.dir
+      size: 30738
       nfiles: 12
     - path: data/interim/weather_disease.parquet
       hash: md5
@@ -126,8 +126,8 @@ stages:
     deps:
     - path: config
       hash: md5
-      md5: e576a46697d451514f649ee8d26b4c46.dir
-      size: 30424
+      md5: 57415c2670306da65a72351dfe944d4f.dir
+      size: 30738
       nfiles: 12
     - path: data/processed/x_test.csv
       hash: md5
@@ -186,17 +186,21 @@ stages:
       size: 5490517
     - path: params.yaml
       hash: md5
-      md5: 34c87e963c137f3f476a875d6e14e48f
-      size: 1242
+      md5: 51b8a80f3320430c4d30e0bcee81cf16
+      size: 1556
     - path: src/config.py
       hash: md5
       md5: 4a8302c57a4d9d70126c16aa79c37a72
       size: 2524
     - path: src/evaluate.py
       hash: md5
-      md5: 08059b8f2bc406b9d3608c1814956b7d
-      size: 6432
+      md5: fc9c06774e2d54baef7a823e71801103
+      size: 7103
     outs:
+    - path: data/processed/reference.parquet
+      hash: md5
+      md5: f40acc16e71b3356cce11ed2dacd885b
+      size: 59695
     - path: reports/classification_report.csv
       hash: md5
       md5: 05b0cbc45cff78ba124d446f10425620
@@ -226,8 +230,8 @@ stages:
     deps:
     - path: config
       hash: md5
-      md5: e576a46697d451514f649ee8d26b4c46.dir
-      size: 30424
+      md5: 57415c2670306da65a72351dfe944d4f.dir
+      size: 30738
       nfiles: 12
     - path: data/processed/x_test.csv
       hash: md5

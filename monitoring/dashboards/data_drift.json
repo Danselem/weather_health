@@ -31,7 +31,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "PCC52D03280B7034C"
+        "uid": "psql-monitoring"
       },
       "fieldConfig": {
         "defaults": {
@@ -105,13 +105,13 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "PCC52D03280B7034C"
+            "uid": "psql-monitoring"
           },
           "format": "time_series",
           "group": [],
           "metricColumn": "none",
           "rawQuery": false,
-          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  prediction_drift\nFROM dummy_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
+          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  prediction_drift\nFROM monitoring_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -141,7 +141,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "PCC52D03280B7034C"
+        "uid": "psql-monitoring"
       },
       "fieldConfig": {
         "defaults": {
@@ -231,13 +231,13 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "PCC52D03280B7034C"
+            "uid": "psql-monitoring"
           },
           "format": "time_series",
           "group": [],
           "metricColumn": "none",
           "rawQuery": false,
-          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  share_missing_values\nFROM dummy_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
+          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  share_missing_values\nFROM monitoring_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -267,7 +267,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "PCC52D03280B7034C"
+        "uid": "psql-monitoring"
       },
       "fieldConfig": {
         "defaults": {
@@ -357,13 +357,13 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "PCC52D03280B7034C"
+            "uid": "psql-monitoring"
           },
           "format": "time_series",
           "group": [],
           "metricColumn": "none",
           "rawQuery": false,
-          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  num_drifted_columns\nFROM dummy_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
+          "rawSql": "SELECT\n  \"timestamp\" AS \"time\",\n  num_drifted_columns\nFROM monitoring_metrics\nWHERE\n  $__timeFilter(\"timestamp\")\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -389,6 +389,67 @@
       ],
       "title": "Number of Drifted Columns",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "psql-monitoring"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "psql-monitoring"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT failed_tests FROM monitoring_metrics ORDER BY \"timestamp\" DESC LIMIT 1"
+        }
+      ],
+      "title": "Failed drift tests",
+      "type": "stat"
     }
   ],
   "schemaVersion": 36,

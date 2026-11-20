@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import pickle
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,11 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+
+try:
+    from src import prediction_store
+except ImportError:  # container image copies this module to /code
+    import prediction_store  # type: ignore[no-redef]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,6 +60,11 @@ def load_artifacts() -> tuple[Any, Any, list[str]]:
     return _artifacts
 
 
+class FeedbackRequest(BaseModel):
+    request_id: str
+    true_label: str
+
+
 class PredictionRequest(BaseModel):
     """Raw, unscaled feature payload."""
 
@@ -90,8 +102,26 @@ def version() -> dict[str, str]:
     return {"model_version": MODEL_VERSION}
 
 
+@app.post("/feedback", tags=["Prediction"])
+def feedback(payload: FeedbackRequest) -> dict[str, Any]:
+    _, encoder, _ = load_artifacts()
+    if payload.true_label not in set(encoder.classes_):
+        raise HTTPException(status_code=400, detail="Unknown label")
+    updated = prediction_store.set_feedback(payload.request_id, payload.true_label)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Request ID not found")
+    return {"status": "recorded", "request_id": payload.request_id}
+
+
+@app.get("/stats", tags=["Health"])
+def prediction_stats() -> dict[str, Any]:
+    return prediction_store.stats()
+
+
 @app.post("/predict", tags=["Prediction"])
 def predict(payload: PredictionRequest) -> dict[str, Any]:
+    request_id = str(uuid.uuid4())
+    started = time.perf_counter()
     try:
         model, encoder, feature_order = load_artifacts()
         features = payload.features if payload.features is not None else payload.model_extra
@@ -116,6 +146,7 @@ def predict(payload: PredictionRequest) -> dict[str, Any]:
         result: dict[str, Any] = {
             "prediction": prediction,
             "model_version": MODEL_VERSION,
+            "request_id": request_id,
         }
 
         if hasattr(model, "predict_proba"):
@@ -127,8 +158,37 @@ def predict(payload: PredictionRequest) -> dict[str, Any]:
                 for i in order
             ]
 
+        try:
+            prediction_store.log_prediction(
+                {
+                    "request_id": request_id,
+                    "model_version": MODEL_VERSION,
+                    "features": features,
+                    "prediction": prediction,
+                    "confidence": result.get("confidence"),
+                    "top_k": result.get("top_k", []),
+                    "latency_ms": (time.perf_counter() - started) * 1000,
+                    "status": "ok",
+                }
+            )
+        except Exception:
+            logger.exception("Prediction logging failed; returning response anyway")
+
         return result
     except HTTPException:
+        try:
+            prediction_store.log_prediction(
+                {
+                    "request_id": request_id,
+                    "model_version": MODEL_VERSION,
+                    "features": payload.model_extra or payload.features or {},
+                    "status": "error",
+                    "latency_ms": (time.perf_counter() - started) * 1000,
+                }
+            )
+        except Exception:
+            logger.exception("Failed to log error prediction")
+        raise
         raise
     except Exception as err:
         logger.exception("Prediction failed")

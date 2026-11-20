@@ -44,3 +44,21 @@ def test_data_contract():
 
     report = validate("data/interim/weather_disease.parquet", "prognosis")
     assert report["passed"], [c for c in report["checks"] if not c["passed"]]
+
+
+def test_prediction_logging_and_feedback(tmp_path, monkeypatch):
+    monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    payload = json.loads(Path("sample_input.json").read_text())
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["request_id"]
+
+    stats = client.get("/stats").json()
+    assert stats["count"] >= 1
+
+    feedback = client.post(
+        "/feedback",
+        json={"request_id": body["request_id"], "true_label": body["prediction"]},
+    )
+    assert feedback.status_code == 200
