@@ -1,0 +1,62 @@
+# =============================================================================
+# Production Environment Configuration
+# =============================================================================
+# Use with: python train.py env=prod
+# =============================================================================
+
+defaults:
+  - _self_
+
+# =============================================================================
+# Environment-Specific Settings
+# =============================================================================
+env:
+  name: prod
+  description: Production environment
+
+# =============================================================================
+# Modeling - Full trials for production
+# =============================================================================
+modeling:
+  n_trials: 10
+  model_family: lightgbm  # Best performing model for production
+
+# =============================================================================
+# MLflow - Production tracking
+# =============================================================================
+mlflow:
+  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}
+  experiment_name: weather_health_prod
+  model_registry: ModelRegistry
+
+# =============================================================================
+# Logging - Warning level for production (less verbose)
+# =============================================================================
+logging:
+  level: WARNING
+
+# =============================================================================
+# AWS Configuration - Production AWS account
+# =============================================================================
+cloud:
+  aws:
+    region: us-east-1
+    profile: prod
+    ecr_repository: weather-health-prod
+    ecs_cluster: weather-health-prod-cluster
+    s3_bucket: weather-health-prod-artifacts
+    # Auto-scaling configuration
+    ecs:
+      min_capacity: 2
+      max_capacity: 10
+      target_cpu: 70
+  gcp:
+    project_id: weather-health-prod
+    region: us-central1
+    artifact_registry: weather-health-prod
+    cloud_run_service: weather-health-prod
+    # Cloud Run configuration
+    cloudrun:
+      min_instances: 2
+      max_instances: 10
+      concurrency: 80

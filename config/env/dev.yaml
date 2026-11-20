@@ -1,0 +1,65 @@
+# =============================================================================
+# Development Environment Configuration
+# =============================================================================
+# Use with: python train.py env=dev
+# =============================================================================
+
+defaults:
+  - _self_
+
+# =============================================================================
+# Environment-Specific Settings
+# =============================================================================
+env:
+  name: dev
+  description: Development environment
+
+# =============================================================================
+# Modeling - Dev typically uses fewer trials for speed
+# =============================================================================
+modeling:
+  n_trials: 2
+  model_family: logistic_regression  # Override in CLI: model=lightgbm
+
+# =============================================================================
+# Data Paths - Use local paths
+# =============================================================================
+data:
+  raw_data_path: data/raw/Weather-related disease prediction.csv
+  interim_data_path: data/interim/weather_disease.parquet
+
+# =============================================================================
+# MLflow - Local or Dagshub dev tracking
+# =============================================================================
+mlflow:
+  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}
+  experiment_name: weather_health_dev
+
+# =============================================================================
+# Prefect - Dev work pool
+# =============================================================================
+prefect:
+  work_pool: weather
+  deployment_name: weather-health-dev
+
+# =============================================================================
+# Logging - Debug level for dev
+# =============================================================================
+logging:
+  level: DEBUG
+
+# =============================================================================
+# AWS Configuration - Dev AWS account
+# =============================================================================
+cloud:
+  aws:
+    region: us-east-1
+    profile: dev
+    ecr_repository: weather-health-dev
+    ecs_cluster: weather-health-dev-cluster
+    s3_bucket: weather-health-dev-artifacts
+  gcp:
+    project_id: weather-health-dev
+    region: us-central1
+    artifact_registry: weather-health-dev
+    cloud_run_service: weather-health-dev
