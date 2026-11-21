@@ -330,9 +330,10 @@ registers a new ECS task definition, updates the service, and smoke-tests the
 ALB.
 
 For the public demo I deployed the same image to Cloud Run in
-`us-central1`. The image is built for `linux/amd64`, Cloud Run is capped at one
-instance, and prediction logs use ephemeral SQLite. The live endpoint and
-Swagger UI are linked at the top of this post.
+`us-central1`. The image is built for `linux/amd64`, Cloud Run is capped at five
+instances, and prediction logs persist in a Cloud SQL Postgres instance through
+the Cloud Run connector. The live endpoint and Swagger UI are linked at the top
+of this post.
 
 The AWS stack uses private ECS subnets behind a NAT gateway, an ALB in public
 subnets, Secrets Manager for the database password, remote S3/DynamoDB state,

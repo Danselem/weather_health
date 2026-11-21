@@ -11,11 +11,14 @@
 | Swagger | https://weather-health-587752925399.us-central1.run.app/docs |
 | Image | `us-central1-docker.pkg.dev/scenic-dynamo-447811-m9/weather-health/weather-health:v1` |
 | Model version | `v1` |
+| Database | Cloud SQL Postgres `weather-health-db` |
+| Secret | `weather-health-db-url` |
+| Max instances | `5` |
 
-The live service uses ephemeral SQLite (`PREDICTION_DB_URL` unset) and
-`max-instances=1`. Prediction logs reset on cold start. For persistent
-monitoring, set `PREDICTION_DB_URL` to a managed Postgres URL and remove the
-single-instance cap.
+The live service connects to Cloud SQL through the Cloud Run connector and
+stores predictions in the `weatherhealth` database. The database uses a
+`db-f1-micro` instance, is zonal, and has automated backups disabled for the
+demo. Monitor cost and enable backups before treating it as production.
 
 ## Deploy manually
 
@@ -34,9 +37,11 @@ gcloud run deploy weather-health \
   --port 8080 \
   --memory 1Gi \
   --cpu 1 \
-  --max-instances 1 \
+  --max-instances 5 \
   --min-instances 0 \
-  --set-env-vars MODEL_VERSION="$TAG",ENVIRONMENT=prod
+  --add-cloudsql-instances scenic-dynamo-447811-m9:us-central1:weather-health-db \
+  --set-env-vars MODEL_VERSION="$TAG",ENVIRONMENT=prod \
+  --set-secrets PREDICTION_DB_URL=weather-health-db-url:latest
 ```
 
 ## Smoke test
@@ -64,6 +69,10 @@ does not yet mirror the live direct `gcloud` deployment. Before using it:
 ## Required permissions for a clean deploy
 
 The current `terraform@` service account can create Artifact Registry
-repositories, deploy Cloud Run, and manage buckets. A persistent Postgres
-secret requires `roles/secretmanager.admin` (or a pre-created secret plus
-`roles/secretmanager.secretAccessor`).
+repositories, deploy Cloud Run, manage buckets, and create secrets. The Cloud
+Run runtime service account needs `roles/cloudsql.client` and
+`roles/secretmanager.secretAccessor`.
+
+The Cloud SQL instance is not yet represented in `infra-gcp/`; it was created
+with `gcloud` for the live demo. Add a Cloud SQL module before treating the
+Terraform stack as the source of truth.

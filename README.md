@@ -11,9 +11,9 @@ serving, prediction logging, drift monitoring, and a guarded retrain loop.
 
 **Live demo:** https://weather-health-587752925399.us-central1.run.app/docs
 
-The live service uses ephemeral SQLite for prediction logs (Cloud Run
-`max-instances=1`); persistent monitoring is demonstrated with the local
-compose stack and a managed Postgres URL.
+The live service writes predictions to a managed Cloud SQL Postgres instance
+through the Cloud Run Cloud SQL connector. Cloud Run is capped at five
+instances; monitoring can read the same store.
 
 **Author:** Daniel Egbo ([@Danselem](https://github.com/Danselem))
 
@@ -89,8 +89,8 @@ curl -s -X POST https://weather-health-587752925399.us-central1.run.app/predict 
 ```
 
 The deployed image is tagged `v1` and reports that version at `/version`.
-Cloud Run is capped at one instance, so SQLite prediction logs are ephemeral;
-use the compose stack with PostgreSQL for persistent monitoring.
+Cloud Run is capped at five instances and writes predictions to Cloud SQL
+Postgres; the compose stack remains the local monitoring dashboard.
 
 ## Quick start
 
@@ -230,7 +230,7 @@ Rollback:
 ### Deployment targets
 
 - **GCP Cloud Run (live):** https://weather-health-587752925399.us-central1.run.app/docs
-  - Direct `gcloud` deploy, `linux/amd64` image, ephemeral SQLite, `max-instances=1`.
+  - Direct `gcloud` deploy, `linux/amd64` image, Cloud SQL Postgres, `max-instances=5`.
   - See [docs/GCP_DEPLOYMENT.md](docs/GCP_DEPLOYMENT.md).
 - **AWS ECS (IaC):** private subnets, Secrets Manager, remote state, and
   environment-gated deploy workflow. Terraform is validated but not applied.
