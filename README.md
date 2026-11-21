@@ -9,7 +9,7 @@ An end-to-end MLOps system for 11-class weather/symptom disease prediction:
 data versioning, reproducible training, champion promotion, containerized
 serving, prediction logging, drift monitoring, and a guarded retrain loop.
 
-**Live demo:** https://weather-health-587752925399.us-central1.run.app/docs
+**Live demo:** [Demo UI](https://weather-health-587752925399.us-central1.run.app/demo) · [Swagger](https://weather-health-587752925399.us-central1.run.app/docs)
 
 The live service writes predictions to a managed Cloud SQL Postgres instance
 through the Cloud Run Cloud SQL connector. Cloud Run is capped at five
@@ -79,6 +79,7 @@ data flow, and design decisions.
 
 ## Live demo
 
+- **Demo UI:** https://weather-health-587752925399.us-central1.run.app/demo
 - **Swagger:** https://weather-health-587752925399.us-central1.run.app/docs
 - **Health:** https://weather-health-587752925399.us-central1.run.app/health
 - **Prediction:** `POST /predict`
@@ -88,7 +89,7 @@ curl -s -X POST https://weather-health-587752925399.us-central1.run.app/predict 
   -H 'Content-Type: application/json' --data @sample_input.json
 ```
 
-The deployed image is tagged `v1` and reports that version at `/version`.
+The deployed model reports MLflow version `1` at `/version`.
 Cloud Run is capped at five instances and writes predictions to Cloud SQL
 Postgres; the compose stack remains the local monitoring dashboard.
 
@@ -126,7 +127,7 @@ make quality_checks           # ruff / black / mypy
 Serve the model:
 
 ```bash
-make serve_local              # http://localhost:8080
+make serve_local              # http://localhost:8080/demo
 curl -X POST http://localhost:8080/predict \
   -H 'Content-Type: application/json' --data @sample_input.json
 ```

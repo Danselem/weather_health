@@ -8,9 +8,10 @@
 | Region | `us-central1` |
 | Cloud Run service | `weather-health` |
 | URL | https://weather-health-587752925399.us-central1.run.app |
+| Demo UI | https://weather-health-587752925399.us-central1.run.app/demo |
 | Swagger | https://weather-health-587752925399.us-central1.run.app/docs |
-| Image | `us-central1-docker.pkg.dev/scenic-dynamo-447811-m9/weather-health/weather-health:v1` |
-| Model version | `v1` |
+| Image | `us-central1-docker.pkg.dev/scenic-dynamo-447811-m9/weather-health/weather-health:<timestamp>` |
+| Model version | `1` (MLflow) |
 | Database | Cloud SQL Postgres `weather-health-db` |
 | Secret | `weather-health-db-url` |
 | Max instances | `5` |
@@ -68,6 +69,7 @@ registered champion first.
 ```bash
 URL=https://weather-health-587752925399.us-central1.run.app
 curl -s "$URL/health"
+# open "$URL/demo" in a browser
 curl -s "$URL/ready"
 curl -s "$URL/version"
 curl -s -X POST "$URL/predict" \

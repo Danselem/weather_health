@@ -18,6 +18,7 @@ COPY src/prediction_store.py .
 COPY models/weather_disease_model.pkl .
 COPY data/processed/feature_order.json .
 COPY data/processed/label_encoder.pkl .
+COPY sample_input.json .
 
 ENV MODEL_PATH=/code/weather_disease_model.pkl \
     FEATURE_ORDER_PATH=/code/feature_order.json \

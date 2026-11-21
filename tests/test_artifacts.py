@@ -46,6 +46,23 @@ def test_data_contract():
     assert report["passed"], [c for c in report["checks"] if not c["passed"]]
 
 
+def test_demo_ui_and_prefilled_openapi_example():
+    demo = client.get("/demo")
+    assert demo.status_code == 200
+    assert "Predict" in demo.text
+
+    sample = client.get("/sample-input")
+    assert sample.status_code == 200
+    assert "Age" in sample.json()
+
+    schema = client.get("/openapi.json").json()
+    examples = schema["paths"]["/predict"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["examples"]
+    assert "sample_raw_features" in examples
+    assert examples["sample_raw_features"]["value"]["Age"] == sample.json()["Age"]
+
+
 def test_prediction_logging_and_feedback(tmp_path, monkeypatch):
     monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
     payload = json.loads(Path("sample_input.json").read_text())

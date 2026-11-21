@@ -10,7 +10,7 @@ This is the story of rebuilding the project from a collection of scripts into a
 reproducible, monitored MLOps system: what the numbers actually say, what broke,
 how I fixed it, and what I would do next.
 
-**Live demo:** [Swagger UI](https://weather-health-587752925399.us-central1.run.app/docs) · [Health](https://weather-health-587752925399.us-central1.run.app/health)
+**Live demo:** [Demo UI](https://weather-health-587752925399.us-central1.run.app/demo) · [Swagger UI](https://weather-health-587752925399.us-central1.run.app/docs) · [Health](https://weather-health-587752925399.us-central1.run.app/health)
 
 ---
 
@@ -27,7 +27,7 @@ how I fixed it, and what I would do next.
 | Weather-only baseline | 0.3761 accuracy / 0.2294 macro F1 |
 | Symptoms-only baseline | 0.9870 accuracy / 0.9880 macro F1 |
 | Honest conclusion | The model learns symptoms, not weather |
-| Live demo | [Cloud Run Swagger](https://weather-health-587752925399.us-central1.run.app/docs) |
+| Live demo | [Demo UI](https://weather-health-587752925399.us-central1.run.app/demo) |
 
 The wiring mattered more than the model:
 
