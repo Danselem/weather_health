@@ -27,5 +27,6 @@ gcloud artifacts repositories describe "$REPOSITORY" \
   --format='value(name,format)' 2>&1 || true
 
 echo "--- API ---"
+SERVICE_URL=$(resolve_service_url)
 curl -fsS "$SERVICE_URL/health" 2>&1 || true
 echo

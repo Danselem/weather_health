@@ -8,6 +8,7 @@ source scripts/gcp_env.sh
 require_command curl
 require_command python3
 
+SERVICE_URL=$(resolve_service_url)
 echo "URL: $SERVICE_URL"
 
 echo -n "health:  "

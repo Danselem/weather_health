@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'scenic-dynamo-447811-m9' }}
   GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
   GCP_SERVICE: ${{ vars.GCP_SERVICE || 'weather-health' }}
   GCP_REPOSITORY: ${{ vars.GCP_REPOSITORY || 'weather-health' }}

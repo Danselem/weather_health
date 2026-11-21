@@ -99,6 +99,7 @@ make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs
 make gcp-deploy      # build linux/amd64 image + deploy
+make gcp-deploy-current  # fetch champion, then deploy
 make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
 make gcp-terraform-destroy          # Terraform-managed resources only
 ```

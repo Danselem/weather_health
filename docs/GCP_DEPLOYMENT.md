@@ -51,12 +51,17 @@ make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs
 make gcp-deploy      # build amd64 image + deploy
+make gcp-deploy-current  # fetch champion, then build + deploy
 make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
 make gcp-terraform-destroy          # Terraform-managed resources only
 ```
 
 `gcp-destroy` refuses to run unless `CONFIRM=gcp-demo` is set. It does not
-touch `elyra-*` services, Terraform state, or unrelated IAM.
+touch `elyra-*` services, Terraform state, or unrelated IAM. `gcp-smoke`
+resolves the live URL from Cloud Run, so it keeps working if the service URL
+changes. `gcp-deploy` reads `MODEL_VERSION` from `models/model_metadata.json`
+when available; set `FETCH_MODEL=1` or use `gcp-deploy-current` to fetch the
+registered champion first.
 
 ## Smoke test
 

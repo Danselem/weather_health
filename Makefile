@@ -416,11 +416,16 @@ gcp-init:                 ## Initialize Terraform for GCP (only needed first tim
 	cd infra-gcp && terraform init -upgrade
 
 gcp-plan:                ## Plan GCP infrastructure changes
-	@make fetch-model || exit 1
-	cd infra-gcp && terraform plan -var-file=environments/prod/terraform.tfvars
+	@. ./scripts/gcp_env.sh; \
+	cd infra-gcp && terraform plan \
+		-var-file=$${GCP_TFVARS:-environments/prod/terraform.tfvars} \
+		-var="project_id=$$PROJECT_ID" -var="region=$$REGION"
 
 gcp-deploy:              ## Build amd64 image and deploy to Cloud Run
 	./scripts/gcp_deploy.sh
+
+gcp-deploy-current:      ## Fetch champion, then build and deploy
+	FETCH_MODEL=1 ./scripts/gcp_deploy.sh
 
 gcp-smoke:               ## Smoke-test the live Cloud Run API
 	./scripts/gcp_smoke.sh
@@ -435,7 +440,10 @@ gcp-destroy:             ## Delete live demo resources (requires CONFIRM=gcp-dem
 	CONFIRM=$(CONFIRM) ./scripts/gcp_demo_destroy.sh
 
 gcp-terraform-destroy:   ## Destroy Terraform-managed GCP resources only
-	cd infra-gcp && terraform destroy -var-file=environments/prod/terraform.tfvars -auto-approve
+	@. ./scripts/gcp_env.sh; \
+	cd infra-gcp && terraform destroy \
+		-var-file=$${GCP_TFVARS:-environments/prod/terraform.tfvars} \
+		-var="project_id=$$PROJECT_ID" -var="region=$$REGION" -auto-approve
 
 # -----------------------------------------------------------------------------
 # Deployment rollback

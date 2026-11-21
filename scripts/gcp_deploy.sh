@@ -7,8 +7,13 @@ source scripts/gcp_env.sh
 
 require_command docker
 require_command gcloud
+require_command jq
 
-MODEL_VERSION="${MODEL_VERSION:-v1}"
+if [ "${FETCH_MODEL:-0}" = "1" ]; then
+  uv run python -m src.fetch_best_model lightgbm
+fi
+
+MODEL_VERSION="${MODEL_VERSION:-$(jq -r '.version // "v1"' models/model_metadata.json 2>/dev/null || echo v1)}"
 TAG="${TAG:-$(date -u +%Y%m%d%H%M%S)}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/weather-health:${TAG}"
 
