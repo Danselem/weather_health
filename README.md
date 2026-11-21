@@ -1,12 +1,19 @@
 # Weather-Health MLOps
 
 [![CI](https://github.com/Danselem/weather_health/actions/workflows/ci.yml/badge.svg)](https://github.com/Danselem/weather_health/actions/workflows/ci.yml)
+[![Live API](https://img.shields.io/badge/live%20API-Cloud%20Run-4285F4)](https://weather-health-587752925399.us-central1.run.app/docs)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 An end-to-end MLOps system for 11-class weather/symptom disease prediction:
 data versioning, reproducible training, champion promotion, containerized
 serving, prediction logging, drift monitoring, and a guarded retrain loop.
+
+**Live demo:** https://weather-health-587752925399.us-central1.run.app/docs
+
+The live service uses ephemeral SQLite for prediction logs (Cloud Run
+`max-instances=1`); persistent monitoring is demonstrated with the local
+compose stack and a managed Postgres URL.
 
 **Author:** Daniel Egbo ([@Danselem](https://github.com/Danselem))
 
@@ -69,6 +76,21 @@ data flow, and design decisions.
 | <img src="images/grafana.png" width="480" alt="Grafana drift dashboard"> | <img src="images/adminer.png" width="480" alt="Prediction database"> |
 
 ---
+
+## Live demo
+
+- **Swagger:** https://weather-health-587752925399.us-central1.run.app/docs
+- **Health:** https://weather-health-587752925399.us-central1.run.app/health
+- **Prediction:** `POST /predict`
+
+```bash
+curl -s -X POST https://weather-health-587752925399.us-central1.run.app/predict \
+  -H 'Content-Type: application/json' --data @sample_input.json
+```
+
+The deployed image is tagged `v1` and reports that version at `/version`.
+Cloud Run is capped at one instance, so SQLite prediction logs are ephemeral;
+use the compose stack with PostgreSQL for persistent monitoring.
 
 ## Quick start
 
@@ -205,6 +227,14 @@ Rollback:
 ./scripts/rollback.sh <cluster> <service> <task-family> <revision>
 ```
 
+### Deployment targets
+
+- **GCP Cloud Run (live):** https://weather-health-587752925399.us-central1.run.app/docs
+  - Direct `gcloud` deploy, `linux/amd64` image, ephemeral SQLite, `max-instances=1`.
+  - See [docs/GCP_DEPLOYMENT.md](docs/GCP_DEPLOYMENT.md).
+- **AWS ECS (IaC):** private subnets, Secrets Manager, remote state, and
+  environment-gated deploy workflow. Terraform is validated but not applied.
+
 ---
 
 ## Documentation
@@ -212,6 +242,7 @@ Rollback:
 - [Project write-up](blog.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Runbook](docs/RUNBOOK.md)
+- [GCP deployment](docs/GCP_DEPLOYMENT.md)
 - [Model card](MODEL_CARD.md)
 - [Data card](DATA_CARD.md)
 - [Monitoring runbook](monitoring/README.md)

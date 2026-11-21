@@ -10,6 +10,8 @@ This is the story of rebuilding the project from a collection of scripts into a
 reproducible, monitored MLOps system: what the numbers actually say, what broke,
 how I fixed it, and what I would do next.
 
+**Live demo:** [Swagger UI](https://weather-health-587752925399.us-central1.run.app/docs) · [Health](https://weather-health-587752925399.us-central1.run.app/health)
+
 ---
 
 ## TL;DR
@@ -25,6 +27,7 @@ how I fixed it, and what I would do next.
 | Weather-only baseline | 0.3761 accuracy / 0.2294 macro F1 |
 | Symptoms-only baseline | 0.9870 accuracy / 0.9880 macro F1 |
 | Honest conclusion | The model learns symptoms, not weather |
+| Live demo | [Cloud Run Swagger](https://weather-health-587752925399.us-central1.run.app/docs) |
 
 The wiring mattered more than the model:
 
@@ -326,6 +329,11 @@ Deployment is manual and environment-gated. It fetches
 registers a new ECS task definition, updates the service, and smoke-tests the
 ALB.
 
+For the public demo I deployed the same image to Cloud Run in
+`us-central1`. The image is built for `linux/amd64`, Cloud Run is capped at one
+instance, and prediction logs use ephemeral SQLite. The live endpoint and
+Swagger UI are linked at the top of this post.
+
 The AWS stack uses private ECS subnets behind a NAT gateway, an ALB in public
 subnets, Secrets Manager for the database password, remote S3/DynamoDB state,
 and an optional monthly budget. It is validated with `terraform validate` and
@@ -402,6 +410,7 @@ Key artifacts:
 ## Links
 
 - Repository: https://github.com/Danselem/weather_health
+- Live API: https://weather-health-587752925399.us-central1.run.app/docs
 - Experiments: https://dagshub.com/Danselem/weather_health/experiments
 - CI: https://github.com/Danselem/weather_health/actions
 

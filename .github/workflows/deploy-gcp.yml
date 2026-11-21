@@ -1,0 +1,112 @@
+name: Deploy to GCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag (empty uses the commit SHA)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-gcp
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  GCP_SERVICE: ${{ vars.GCP_SERVICE || 'weather-health' }}
+  GCP_REPOSITORY: ${{ vars.GCP_REPOSITORY || 'weather-health' }}
+
+jobs:
+  deploy:
+    name: Build and Deploy Cloud Run
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.10"
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Pull DVC data
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc remote modify origin --local auth basic
+          uv run dvc remote modify origin --local user "$DAGSHUB_USER"
+          uv run dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          uv run dvc pull
+
+      - name: Fetch champion
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          DAGSHUB_REPO_OWNER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_REPO: ${{ vars.DAGSHUB_REPO || 'weather_health' }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: uv run python -m src.fetch_best_model lightgbm
+
+      - name: Build and push
+        id: image
+        run: |
+          TAG="${{ inputs.tag }}"
+          if [ -z "$TAG" ]; then TAG="${GITHUB_SHA::12}"; fi
+          MODEL_VERSION=$(jq -r '.version // "unknown"' models/model_metadata.json)
+          IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_REPOSITORY}/weather-health:${TAG}"
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+          docker build --platform linux/amd64 \
+            --build-arg MODEL_VERSION="$MODEL_VERSION" \
+            -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "model_version=$MODEL_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Cloud Run
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          MODEL_VERSION: ${{ steps.image.outputs.model_version }}
+          PREDICTION_SECRET: ${{ secrets.GCP_PREDICTION_SECRET }}
+        run: |
+          EXTRA=""
+          if [ -n "$PREDICTION_SECRET" ]; then
+            EXTRA="--set-secrets PREDICTION_DB_URL=${PREDICTION_SECRET}:latest"
+          fi
+          gcloud run deploy "$GCP_SERVICE" \
+            --image "$IMAGE" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 1Gi \
+            --cpu 1 \
+            --max-instances 1 \
+            --min-instances 0 \
+            --set-env-vars MODEL_VERSION="$MODEL_VERSION",ENVIRONMENT=prod \
+            $EXTRA \
+            --project "$GCP_PROJECT_ID" \
+            --quiet
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe "$GCP_SERVICE" \
+            --region "$GCP_REGION" --project "$GCP_PROJECT_ID" \
+            --format='value(status.url)')
+          curl -fsS "$URL/health"
+          curl -fsS "$URL/ready"
+          curl -fsS -X POST "$URL/predict" \
+            -H 'Content-Type: application/json' --data @sample_input.json
