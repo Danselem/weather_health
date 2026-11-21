@@ -419,20 +419,22 @@ gcp-plan:                ## Plan GCP infrastructure changes
 	@make fetch-model || exit 1
 	cd infra-gcp && terraform plan -var-file=environments/prod/terraform.tfvars
 
-gcp-deploy:              ## Deploy to GCP Artifact Registry + Cloud Run
-	@make fetch-model || exit 1
-	@echo "Building Docker image..."
-	docker build -t weather-health:latest .
-	@echo "Configuring GCP auth..."
-	gcloud auth configure-docker
-	@echo "Tagging for GCP Artifact Registry..."
-	docker tag weather-health:latest us-central1-docker.pkg.dev/weather-health-prod/weather-health-prod/weather-health:latest
-	@echo "Pushing to GCP Artifact Registry..."
-	docker push us-central1-docker.pkg.dev/weather-health-prod/weather-health-prod/weather-health:latest
-	@echo "Deploying to Cloud Run..."
-	cd infra-gcp && terraform apply -var-file=environments/prod/terraform.tfvars -auto-approve
+gcp-deploy:              ## Build amd64 image and deploy to Cloud Run
+	./scripts/gcp_deploy.sh
 
-gcp-destroy:             ## Destroy GCP infrastructure
+gcp-smoke:               ## Smoke-test the live Cloud Run API
+	./scripts/gcp_smoke.sh
+
+gcp-status:              ## Show Cloud Run, SQL, secret, and registry status
+	./scripts/gcp_status.sh
+
+gcp-logs:                ## Read recent Cloud Run logs
+	./scripts/gcp_logs.sh
+
+gcp-destroy:             ## Delete live demo resources (requires CONFIRM=gcp-demo)
+	CONFIRM=$(CONFIRM) ./scripts/gcp_demo_destroy.sh
+
+gcp-terraform-destroy:   ## Destroy Terraform-managed GCP resources only
 	cd infra-gcp && terraform destroy -var-file=environments/prod/terraform.tfvars -auto-approve
 
 # -----------------------------------------------------------------------------

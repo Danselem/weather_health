@@ -92,6 +92,17 @@ The deployed image is tagged `v1` and reports that version at `/version`.
 Cloud Run is capped at five instances and writes predictions to Cloud SQL
 Postgres; the compose stack remains the local monitoring dashboard.
 
+### Live GCP operations
+
+```bash
+make gcp-smoke       # health, ready, version, predict, feedback, stats
+make gcp-status      # Cloud Run, Cloud SQL, secret, registry
+make gcp-logs        # recent Cloud Run logs
+make gcp-deploy      # build linux/amd64 image + deploy
+make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
+make gcp-terraform-destroy          # Terraform-managed resources only
+```
+
 ## Quick start
 
 ```bash
@@ -260,6 +271,8 @@ Rollback:
 - Full feature set is slightly worse than symptoms-only; weather may add noise.
 - Alert delivery and retraining require optional secrets/webhooks.
 - AWS stack is validated but not applied in this repository.
+- The live GCP demo (Cloud Run + Cloud SQL) incurs cost; run
+  `make gcp-destroy CONFIRM=gcp-demo` when you are done.
 
 ## Roadmap
 

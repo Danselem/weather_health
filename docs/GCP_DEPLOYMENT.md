@@ -44,6 +44,20 @@ gcloud run deploy weather-health \
   --set-secrets PREDICTION_DB_URL=weather-health-db-url:latest
 ```
 
+## Make targets
+
+```bash
+make gcp-smoke       # health, ready, version, predict, feedback, stats
+make gcp-status      # Cloud Run, Cloud SQL, secret, registry
+make gcp-logs        # recent Cloud Run logs
+make gcp-deploy      # build amd64 image + deploy
+make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
+make gcp-terraform-destroy          # Terraform-managed resources only
+```
+
+`gcp-destroy` refuses to run unless `CONFIRM=gcp-demo` is set. It does not
+touch `elyra-*` services, Terraform state, or unrelated IAM.
+
 ## Smoke test
 
 ```bash
@@ -53,6 +67,31 @@ curl -s "$URL/ready"
 curl -s "$URL/version"
 curl -s -X POST "$URL/predict" \
   -H 'Content-Type: application/json' --data @sample_input.json
+```
+
+Feedback and stats:
+
+```bash
+RID=$(curl -s -X POST "$URL/predict" \
+  -H 'Content-Type: application/json' --data @sample_input.json \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["request_id"])')
+
+curl -s -X POST "$URL/feedback" \
+  -H 'Content-Type: application/json' \
+  -d "{\"request_id\":\"$RID\",\"true_label\":\"Heat Stroke\"}"
+curl -s "$URL/stats"
+```
+
+Error paths:
+
+```bash
+jq 'del(.Age)' sample_input.json > /tmp/missing.json
+curl -i -X POST "$URL/predict" \
+  -H 'Content-Type: application/json' --data @/tmp/missing.json
+
+curl -i -X POST "$URL/feedback" \
+  -H 'Content-Type: application/json' \
+  -d '{"request_id":"does-not-exist","true_label":"Heat Stroke"}'
 ```
 
 ## Terraform path
