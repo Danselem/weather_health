@@ -1,185 +1,83 @@
-> **Alternative deployment path.** The supported production path is `infra-aws/`. This stack is kept as a reference for Cloud Run and uses local Terraform state.
+# GCP Infrastructure
 
-# Weather Health - GCP Infrastructure
+Terraform for the Cloud Run deployment of the weather-health API.
 
-**Parent Project:** [weather-health](https://github.com/Danselem/weather-health)
+> **Live demo:** https://weather-health-587752925399.us-central1.run.app/docs
+>
+> The live resources were initially created with `gcloud`. The Terraform
+> configuration now models them, but adopting the existing resources requires
+> imports (see [docs/GCP_DEPLOYMENT.md](../docs/GCP_DEPLOYMENT.md)).
 
-Terraform infrastructure as code for deploying the Weather Health ML application on Google Cloud Platform.
+## Architecture
 
-> **Note:** This folder can be extracted to a separate repo (`weather-health-infra-gcp`) for production use.
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Artifact Registry│────▶│  Cloud Run  │────▶│     GCS     │
-│   (Images)       │     │  (FastAPI)  │     │ (Artifacts) │
-└──────────────────┘     └─────────────┘     └─────────────┘
+```text
+Artifact Registry -> Cloud Run -> Cloud SQL Postgres
+                          |-> Secret Manager (PREDICTION_DB_URL)
+                          |-> GCS artifacts bucket (private)
+                          |-> Cloud Logging
 ```
 
----
+- Cloud Run service `weather-health`, region `us-central1`, max 5 instances.
+- Dedicated runtime service account with `roles/cloudsql.client` and
+  `roles/secretmanager.secretAccessor`.
+- Cloud SQL Postgres `weather-health-db`, database `weatherhealth`.
+- Secret Manager secret `weather-health-db-url`.
+- GCS artifacts bucket with uniform access and no public IAM.
+- Artifact Registry repository `weather-health`.
 
-## 📁 Directory Structure
+## Modules
 
-```
-infra-gcp/
-├── backend.tf                    # GCS remote state
-├── versions.tf                   # Provider versions
-├── main.tf                       # Root module
-├── modules/
-│   ├── cloudrun/                # Cloud Run service
-│   ├── artifact-registry/       # Artifact Registry
-│   └── gcs-artifacts/           # GCS bucket for models
-├── environments/
-│   ├── dev/                     # Development config
-│   ├── staging/                 # Staging config
-│   └── prod/                    # Production config
-├── .github/workflows/           # CI/CD (separate repo)
-└── README.md
-```
+| Module | Purpose |
+|---|---|
+| `modules/cloudrun` | Cloud Run service, env vars, secret refs, Cloud SQL annotation |
+| `modules/cloudsql` | Postgres instance and database |
+| `modules/artifact-registry` | Docker image registry |
+| `modules/gcs-artifacts` | Private artifact bucket |
 
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- GCP Project
-- Terraform >= 1.7.0
-- Google Cloud SDK configured
-- Docker (for building images)
-
-### Deploy
+## Quick start
 
 ```bash
-# 1. Authenticate
-gcloud auth login
 gcloud auth application-default login
-
-# 2. Navigate to environment
-cd environments/dev
-
-# 3. Initialize Terraform
+cd infra-gcp
 terraform init
-
-# 4. Plan changes
-terraform plan
-
-# 5. Apply (or use CI/CD)
-terraform apply
+terraform plan -var-file=environments/dev/terraform.tfvars
+terraform apply -var-file=environments/dev/terraform.tfvars
 ```
 
----
+The root module uses local state today. Add a GCS backend before using this as
+a team-owned stack.
 
-## 🌈 Environments
+## Adopting the live demo
 
-| Environment | CPU | Memory | Instances | Monthly Cost |
-|-------------|-----|--------|-----------|--------------|
-| Dev | 1 | 1Gi | 0-5 | ~$0-25 |
-| Staging | 1 | 1Gi | 0-8 | ~$25-50 |
-| Prod | 2 | 2Gi | 2-10 | ~$50-100 |
-
----
-
-## 🔧 Configuration
-
-Edit `environments/*/terraform.tfvars`:
-
-```hcl
-project_id      = "weather-health-dev"
-region          = "us-central1"
-environment     = "dev"
-container_image = "us-central1-docker.pkg.dev/PROJECT/weather-health:v1.0"
-```
-
----
-
-## 🔐 Security
-
-- ✅ Artifact Registry with Docker format
-- ✅ GCS with uniform bucket-level access
-- ✅ Cloud Run with IAM invoker
-- ✅ Service accounts with least privilege
-
----
-
-## 📦 Modules
-
-### Cloud Run (`modules/cloudrun/`)
-- Serverless container deployment
-- Auto-scaling (0 to N instances)
-- Custom CPU and memory allocation
-- Environment variables support
-- Public URL with HTTPS
-
-### Artifact Registry (`modules/artifact-registry/`)
-- Docker container registry
-- Regional storage
-- Public read access
-
-### GCS Artifacts (`modules/gcs-artifacts/`)
-- Versioning enabled
-- Lifecycle rules (30-day expiry)
-- Uniform bucket-level access
-
----
-
-## 🧪 Testing
+The live Cloud SQL instance, secret, Artifact Registry, and Cloud Run service
+were created manually. Import them before applying this configuration:
 
 ```bash
-# Validate Terraform syntax
-terraform fmt -recursive
-terraform validate
+cd infra-gcp
 
-# Plan (dry run)
-terraform plan
+terraform import module.cloudsql.google_sql_database_instance.this weather-health-db
+terraform import module.cloudsql.google_sql_database.this \
+  projects/scenic-dynamo-447811-m9/instances/weather-health-db/databases/weatherhealth
+terraform import google_secret_manager_secret.db_url \
+  projects/scenic-dynamo-447811-m9/secrets/weather-health-db-url
+terraform import google_secret_manager_secret_version.db_url \
+  projects/scenic-dynamo-447811-m9/secrets/weather-health-db-url/versions/1
+terraform import module.artifact_registry.google_artifact_registry_repository.this \
+  projects/scenic-dynamo-447811-m9/locations/us-central1/repositories/weather-health
+terraform import module.cloudrun.google_cloud_run_service.this \
+  locations/us-central1/namespaces/scenic-dynamo-447811-m9/services/weather-health
 ```
 
----
+Imports are stateful and should be done in a branch with a reviewed plan. The
+secret version uses `ignore_changes = [secret_data]` so an import does not
+rotate the live password.
 
-## 💰 Cost Estimate
+## Security notes
 
-| Resource | Monthly Cost |
-|----------|--------------|
-| Cloud Run | ~$0.000024/second |
-| Artifact Registry | ~$0.10/GB |
-| GCS | ~$0.020/GB |
-
----
-
-## 🔄 CI/CD Integration
-
-```yaml
-# .github/workflows/deploy.yml (add to separate infra repo)
-jobs:
-  terraform:
-    - run: terraform init
-    - run: terraform plan
-    - run: terraform apply
-  
-  deploy-cloudrun:
-    - run: gcloud run deploy --image <image> --platform managed
-```
-
----
-
-## 🆘 Troubleshooting
-
-```bash
-# View Cloud Run logs
-gcloud logging read "resource.type=cloud_run_revision" --limit 50
-
-# Check service status
-gcloud run describe weather-health-dev --region us-central1
-
-# View revision details
-gcloud run revisions list --service weather-health-dev --region us-central1
-```
-
----
-
-## 📝 License
-
-MIT License - See [LICENSE](../LICENSE)
+- The GCS bucket is private; the previous `allUsers` viewer binding was removed.
+- The Cloud Run service is public for the demo (`allUsers` invoker).
+- Cloud SQL uses a public IP with the Cloud Run connector; no authorized
+  network is opened.
+- Automated backups are disabled on the demo instance. Enable them and set
+  deletion protection before production.
+- Store secrets only in Secret Manager, never in tfvars or Git.

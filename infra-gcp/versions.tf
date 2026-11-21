@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -105,6 +109,18 @@ variable "service_account_email" {
   description = "Service account email for Cloud Run"
   type        = string
   default     = ""
+}
+
+variable "model_version" {
+  description = "Model version exposed by the API"
+  type        = string
+  default     = "v1"
+}
+
+variable "service_name" {
+  description = "Cloud Run service name"
+  type        = string
+  default     = "weather-health"
 }
 
 # =============================================================================

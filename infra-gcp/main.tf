@@ -12,6 +12,15 @@ module "artifact_registry" {
   project_id = var.project_id
 }
 
+module "cloudsql" {
+  source = "./modules/cloudsql"
+
+  name          = "weather-health-db"
+  project_id    = var.project_id
+  region        = var.region
+  root_password = random_password.db.result
+}
+
 module "gcs_artifacts" {
   source = "./modules/gcs-artifacts"
 
@@ -35,8 +44,16 @@ module "cloudrun" {
   max_instances = var.max_instances
   concurrency   = var.concurrency
 
+  service_account_email = google_service_account.runtime.email
+  cloudsql_instances    = [module.cloudsql.connection_name]
+
   environment_variables = {
-    ENVIRONMENT = var.environment
+    ENVIRONMENT   = var.environment
+    MODEL_VERSION = var.model_version
+  }
+
+  secret_environment_variables = {
+    PREDICTION_DB_URL = google_secret_manager_secret.db_url.secret_id
   }
 }
 

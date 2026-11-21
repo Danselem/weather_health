@@ -57,13 +57,16 @@ curl -s -X POST "$URL/predict" \
 
 ## Terraform path
 
-`infra-gcp/` is an alternative reference stack. It still uses local state and
-does not yet mirror the live direct `gcloud` deployment. Before using it:
+`infra-gcp/` now models Cloud SQL, the Secret Manager secret, the runtime
+service account, secret/Cloud SQL IAM, the connector annotation, and a private
+GCS bucket. It still uses local state and has not been applied to the live
+project.
+
+Before using it as the source of truth:
 
 - replace placeholder `project_id` values in `infra-gcp/environments/*`;
 - add a GCS backend;
-- remove public IAM from the GCS artifacts bucket;
-- add Secret Manager-backed `PREDICTION_DB_URL`;
+- import the existing live resources (see `infra-gcp/README.md`);
 - decide whether Terraform or `gcloud run deploy` owns image updates.
 
 ## Required permissions for a clean deploy
@@ -73,6 +76,7 @@ repositories, deploy Cloud Run, manage buckets, and create secrets. The Cloud
 Run runtime service account needs `roles/cloudsql.client` and
 `roles/secretmanager.secretAccessor`.
 
-The Cloud SQL instance is not yet represented in `infra-gcp/`; it was created
-with `gcloud` for the live demo. Add a Cloud SQL module before treating the
-Terraform stack as the source of truth.
+`infra-gcp/` now models Cloud SQL, the Secret Manager secret, the runtime
+service account, and the Cloud Run connector. The live resources were created
+with `gcloud` first; see `infra-gcp/README.md` for import commands before
+treating Terraform as the source of truth.

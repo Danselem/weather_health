@@ -79,9 +79,21 @@ variable "labels" {
 }
 
 variable "environment_variables" {
-  description = "Environment variables"
+  description = "Plain environment variables"
   type        = map(string)
   default     = {}
+}
+
+variable "secret_environment_variables" {
+  description = "Environment variables sourced from Secret Manager (name -> secret id)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "cloudsql_instances" {
+  description = "Cloud SQL connection names to mount at /cloudsql"
+  type        = list(string)
+  default     = []
 }
 
 # =============================================================================
@@ -113,16 +125,34 @@ resource "google_cloud_run_service" "this" {
             value = env.value
           }
         }
+
+        dynamic "env" {
+          for_each = var.secret_environment_variables
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value
+                version = "latest"
+              }
+            }
+          }
+        }
       }
 
       service_account_name = var.service_account_email != "" ? var.service_account_email : null
     }
 
     metadata {
-      annotations = {
-        "autoscaling.knative.dev/minScale" = var.min_instances
-        "autoscaling.knative.dev/maxScale" = var.max_instances
-      }
+      annotations = merge(
+        {
+          "autoscaling.knative.dev/minScale" = var.min_instances
+          "autoscaling.knative.dev/maxScale" = var.max_instances
+        },
+        length(var.cloudsql_instances) == 0 ? {} : {
+          "run.googleapis.com/cloudsql-instances" = join(",", var.cloudsql_instances)
+        }
+      )
     }
   }
 

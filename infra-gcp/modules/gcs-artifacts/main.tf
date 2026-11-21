@@ -74,16 +74,6 @@ resource "google_storage_bucket" "this" {
 }
 
 # =============================================================================
-# Bucket IAM - Storage Object Viewer for allUsers (read-only)
-# =============================================================================
-
-resource "google_storage_bucket_iam_member" "viewer" {
-  bucket = google_storage_bucket.this.name
-  role   = "roles/storage.objectViewer"
-  member = "allUsers"
-}
-
-# =============================================================================
 # Outputs
 # =============================================================================
 
