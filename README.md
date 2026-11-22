@@ -199,6 +199,26 @@ weather_health/
 
 ---
 
+## Local load test
+
+Manual Locust run against a warmed local API with rate limiting disabled:
+
+| Metric | Result |
+|---|---:|
+| Requests | 317 over 20s |
+| Throughput | 16.1 req/s |
+| Failures | 0.00% |
+| p50 / p95 / p99 | 13 / 27 / 38 ms |
+
+Run it with:
+
+```bash
+RATE_LIMIT_PER_MINUTE=0 uv run uvicorn service.app:app --port 18084
+LOCUST_HOST=http://127.0.0.1:18084 make loadtest
+```
+
+The live service is rate-limited, so use the local server for a clean latency benchmark.
+
 ## Data and scientific findings
 
 - 5,200 raw rows → 4,981 after duplicate removal; 45 features; 11 classes.

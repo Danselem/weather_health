@@ -314,6 +314,11 @@ new champion. A human still decides when to deploy.
 
 ---
 
+## Local performance check
+
+I ran a short Locust test against a warmed local API with rate limiting disabled:
+317 requests in 20 seconds, **16.1 req/s**, **0 failures**, and **p50 / p95 / p99 = 13 / 27 / 38 ms**. The first cold-start request was much slower, which is why the benchmark uses a warmed server. The live demo is rate-limited, so it is not a fair latency benchmark target.
+
 ## CI/CD and infrastructure
 
 CI runs on every push and pull request:

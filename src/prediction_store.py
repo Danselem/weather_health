@@ -3,7 +3,8 @@
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,14 @@ def init_db() -> None:
         model_version TEXT
     )
     """
+    requests_ddl = f"""
+    CREATE TABLE IF NOT EXISTS request_events (
+        timestamp {timestamp_type} NOT NULL,
+        endpoint TEXT NOT NULL,
+        status_code INTEGER,
+        prediction_logged BOOLEAN
+    )
+    """
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_predictions_timestamp ON predictions(timestamp)",
         "CREATE INDEX IF NOT EXISTS idx_predictions_status ON predictions(status)",
@@ -85,12 +94,40 @@ def init_db() -> None:
         cur.execute(predictions_ddl)
         cur.execute(metrics_ddl)
         cur.execute(performance_ddl)
+        cur.execute(requests_ddl)
         for statement in indexes:
             cur.execute(statement)
         conn.commit()
 
 
-def log_prediction(record: dict[str, Any]) -> None:
+def _write_dead_letter(record: dict[str, Any], error: Exception) -> None:
+    path = Path(os.getenv("DEAD_LETTER_PATH", "data/monitoring/dead_letter.jsonl"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "error": str(error),
+        "record": record,
+    }
+    with path.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(payload) + "\n")
+
+
+def log_prediction(record: dict[str, Any], retries: int = 2) -> None:
+    last_error: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            _log_prediction_once(record)
+            return
+        except Exception as error:
+            last_error = error
+            if attempt < retries:
+                time.sleep(0.2 * (attempt + 1))
+    if last_error is not None:
+        _write_dead_letter(record, last_error)
+        raise last_error
+
+
+def _log_prediction_once(record: dict[str, Any]) -> None:
     init_db()
     timestamp = record.get("timestamp") or datetime.now(timezone.utc)
     values = (
@@ -131,12 +168,27 @@ def set_feedback(request_id: str, true_label: str) -> bool:
     return bool(updated)
 
 
-def fetch_predictions(limit: int = 5000) -> pd.DataFrame:
+def fetch_predictions(
+    limit: int = 5000,
+    since: datetime | None = None,
+    status: str | None = "ok",
+) -> pd.DataFrame:
     init_db()
-    sql = "SELECT * FROM predictions ORDER BY timestamp DESC LIMIT " + str(int(limit))
+    conditions: list[str] = []
+    params: list = []
+    if status is not None:
+        conditions.append("status = " + _placeholder())
+        params.append(status)
+    if since is not None:
+        conditions.append("timestamp >= " + _placeholder())
+        params.append(since if _is_postgres() else str(since))
+    sql = "SELECT * FROM predictions"
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+    sql += " ORDER BY timestamp DESC LIMIT " + str(int(limit))
     with _connect() as conn:
         cur = conn.cursor()
-        cur.execute(sql)
+        cur.execute(sql, tuple(params))
         columns = [desc[0] for desc in cur.description]
         rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=columns)
@@ -237,6 +289,56 @@ def prune_predictions(days: int = 30) -> int:
     return int(deleted)
 
 
+def log_request_event(
+    *,
+    endpoint: str,
+    status_code: int,
+    prediction_logged: bool,
+    timestamp: datetime | None = None,
+) -> None:
+    try:
+        init_db()
+        ts = timestamp or datetime.now(timezone.utc)
+        values = (
+            ts if _is_postgres() else str(ts),
+            endpoint,
+            int(status_code),
+            bool(prediction_logged),
+        )
+        sql = f"""
+        INSERT INTO request_events
+        (timestamp, endpoint, status_code, prediction_logged)
+        VALUES ({", ".join([_placeholder()] * 4)})
+        """
+        with _connect() as conn:
+            cur = conn.cursor()
+            cur.execute(sql, values)
+            conn.commit()
+    except Exception:
+        # Request logging must never break the API response.
+        pass
+
+
+def request_summary(window_hours: int = 24) -> dict[str, Any]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    frame = _fetch(
+        "SELECT COUNT(*) AS requests, "
+        "SUM(CASE WHEN prediction_logged THEN 1 ELSE 0 END) AS logged "
+        "FROM request_events WHERE timestamp >= " + _placeholder(),
+        (cutoff if _is_postgres() else str(cutoff),),
+    )
+    if frame.empty:
+        return {"requests": 0, "logged": 0, "coverage": None}
+    row = frame.iloc[0]
+    requests = int(row["requests"] or 0)
+    logged = int(row["logged"] or 0)
+    return {
+        "requests": requests,
+        "logged": logged,
+        "coverage": (logged / requests) if requests else None,
+    }
+
+
 def stats() -> dict[str, Any]:
     init_db()
     with _connect() as conn:
@@ -262,7 +364,7 @@ def _fetch(sql: str, params: tuple = ()) -> pd.DataFrame:
     init_db()
     with _connect() as conn:
         cur = conn.cursor()
-        cur.execute(sql, params)
+        cur.execute(sql, tuple(params))
         columns = [desc[0] for desc in cur.description]
         rows = cur.fetchall()
     return pd.DataFrame(rows, columns=columns)
@@ -299,7 +401,7 @@ def prediction_summary() -> dict[str, Any]:
     }
 
 
-def monitoring_summary() -> dict[str, Any]:
+def monitoring_summary(window_hours: int = 24, row_limit: int = 5000) -> dict[str, Any]:
     metrics = recent_monitoring_metrics()
     performance = recent_performance_metrics()
     latest = metrics.iloc[-1].to_dict() if not metrics.empty else None
@@ -316,4 +418,7 @@ def monitoring_summary() -> dict[str, Any]:
             for row in performance.to_dict(orient="records")
         ],
         "predictions": prediction_summary(),
+        "coverage": request_summary(window_hours=window_hours),
+        "window_hours": window_hours,
+        "row_limit": row_limit,
     }

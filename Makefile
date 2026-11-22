@@ -77,6 +77,12 @@ ablation:                    ## Compare weather-only, symptom-only, and full fea
 check-metrics:               ## Fail if model metrics or data contract regress
 	uv run -m src.check_metrics
 
+loadtest:                    ## Manual Locust run (LOCUST_HOST, LOCUST_USERS, LOCUST_RUN_TIME)
+	uv run --with locust locust -f loadtests/locustfile.py --headless \
+		-u $${LOCUST_USERS:-10} -r 5 -t $${LOCUST_RUN_TIME:-60s} \
+		--host $${LOCUST_HOST:-http://127.0.0.1:8080} \
+		--only-summary --csv reports/loadtest
+
 analysis:                    ## Calibration, slices, CV, and SHAP reports
 	uv run -m src.calibration
 	uv run -m src.slices

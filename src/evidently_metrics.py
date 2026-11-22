@@ -3,7 +3,7 @@
 import argparse
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,7 +21,10 @@ from src.retrain_trigger import trigger_retrain
 
 
 def _load_current(
-    reference_columns: list[str], current_path: str | None, limit: int
+    reference_columns: list[str],
+    current_path: str | None,
+    limit: int,
+    window_hours: int = 24,
 ) -> pd.DataFrame:
     if current_path:
         path = Path(current_path)
@@ -29,7 +32,8 @@ def _load_current(
             pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
         )
     else:
-        logged = prediction_store.fetch_predictions(limit=limit)
+        since = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        logged = prediction_store.fetch_predictions(limit=limit, since=since)
         if logged.empty:
             raise ValueError(
                 "No logged predictions. Send traffic to /predict or pass --current-path."
@@ -140,6 +144,7 @@ def run_monitoring(
     limit: int = 5000,
     fail_on_drift: bool = False,
     trigger_retrain_on_failure: bool = False,
+    window_hours: int = 24,
 ) -> dict[str, Any]:
     """Plain runner used by the Cloud Run Job and by the Prefect flow."""
     cfg = load_config("config")
@@ -151,8 +156,10 @@ def run_monitoring(
 
     reference = pd.read_parquet(reference_path)
     reference_columns = [c for c in reference.columns if c != "true_label"]
-    current = _load_current(reference_columns, current_path, limit)
+    current = _load_current(reference_columns, current_path, limit, window_hours)
     metrics = run_evidently.fn(reference, current, cfg.monitoring.reports_dir)
+    metrics["window_hours"] = window_hours
+    metrics["current_rows"] = len(current)
 
     if metrics["failed_tests"]:
         send_alert(metrics)
@@ -179,12 +186,14 @@ def monitoring_flow(
     limit: int = 5000,
     fail_on_drift: bool = False,
     trigger_retrain_on_failure: bool = False,
+    window_hours: int = 24,
 ) -> dict[str, Any]:
     return run_monitoring(
         current_path=current_path,
         limit=limit,
         fail_on_drift=fail_on_drift,
         trigger_retrain_on_failure=trigger_retrain_on_failure,
+        window_hours=window_hours,
     )
 
 
@@ -195,6 +204,7 @@ def main() -> None:
     parser.add_argument("--fail-on-drift", action="store_true")
     parser.add_argument("--trigger-retrain", action="store_true")
     parser.add_argument("--no-prefect", action="store_true")
+    parser.add_argument("--window-hours", type=int, default=24)
     args = parser.parse_args()
     runner = run_monitoring if args.no_prefect else monitoring_flow
     runner(
@@ -202,6 +212,7 @@ def main() -> None:
         limit=args.limit,
         fail_on_drift=args.fail_on_drift,
         trigger_retrain_on_failure=args.trigger_retrain,
+        window_hours=args.window_hours,
     )
 
 

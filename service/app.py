@@ -147,11 +147,23 @@ class PredictionRequest(BaseModel):
 
 
 @app.middleware("http")
-async def limit_request_size(request: Request, call_next: Any) -> Any:
+async def observe_requests(request: Request, call_next: Any) -> Any:
+    path = request.url.path
     length = request.headers.get("content-length")
-    if length and int(length) > MAX_REQUEST_BYTES:
+    if path == "/predict" and length and int(length) > MAX_REQUEST_BYTES:
+        prediction_store.log_request_event(
+            endpoint=path, status_code=413, prediction_logged=False
+        )
         return JSONResponse(status_code=413, content={"detail": "Request too large"})
-    return await call_next(request)
+
+    response = await call_next(request)
+    if path == "/predict":
+        prediction_store.log_request_event(
+            endpoint=path,
+            status_code=response.status_code,
+            prediction_logged=bool(getattr(request.state, "prediction_logged", False)),
+        )
+    return response
 
 
 @app.get("/", tags=["Health"])
@@ -195,7 +207,10 @@ def demo() -> str:
 
 @app.get("/monitoring.json", tags=["Health"])
 def monitoring_json() -> dict[str, Any]:
-    return prediction_store.monitoring_summary()
+    return prediction_store.monitoring_summary(
+        window_hours=int(os.getenv("MONITORING_WINDOW_HOURS", "24")),
+        row_limit=int(os.getenv("MONITORING_ROW_LIMIT", "5000")),
+    )
 
 
 @app.get("/monitoring", response_class=HTMLResponse, tags=["Health"])
@@ -284,6 +299,7 @@ def predict(
                 for i in order
             ]
 
+        logged = False
         try:
             prediction_store.log_prediction(
                 {
@@ -297,11 +313,20 @@ def predict(
                     "status": "ok",
                 }
             )
+            logged = True
         except Exception:
-            logger.exception("Prediction logging failed; returning response anyway")
+            logger.exception("Prediction logging failed")
+        request.state.prediction_logged = logged
+        if not logged and os.getenv("PREDICTION_LOG_STRICT", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            raise HTTPException(status_code=503, detail="Prediction logging unavailable")
 
         return result
     except HTTPException:
+        logged = False
         try:
             prediction_store.log_prediction(
                 {
@@ -314,9 +339,23 @@ def predict(
             )
         except Exception:
             logger.exception("Failed to log error prediction")
+        request.state.prediction_logged = True
         raise
     except Exception as err:
         logger.exception("Prediction failed")
+        try:
+            prediction_store.log_prediction(
+                {
+                    "request_id": request_id,
+                    "model_version": MODEL_VERSION,
+                    "features": payload.model_extra or payload.features or {},
+                    "status": "error",
+                    "latency_ms": (time.perf_counter() - started) * 1000,
+                }
+            )
+        except Exception:
+            logger.exception("Failed to log model failure")
+        request.state.prediction_logged = True
         raise HTTPException(status_code=500, detail="Prediction failed") from err
 
 
@@ -349,6 +388,8 @@ MONITORING_HTML = """<!doctype html>
     <div class="card"><div class="muted">Predictions logged</div><div id="count" class="big">…</div></div>
     <div class="card"><div class="muted">Accuracy</div><div id="accuracy" class="big">…</div></div>
     <div class="card"><div class="muted">Macro F1</div><div id="f1" class="big">…</div></div>
+    <div class="card"><div class="muted">Window</div><div id="window" class="big">…</div></div>
+    <div class="card"><div class="muted">Request/log coverage</div><div id="coverage" class="big">…</div></div>
   </div>
   <h2>Recent monitoring windows</h2>
   <table><thead><tr><th>Timestamp</th><th>Status</th><th>Failed tests</th><th>Drifted columns</th><th>Prediction drift</th></tr></thead>
@@ -368,6 +409,10 @@ MONITORING_HTML = """<!doctype html>
       const perf = (data.performance || []).slice(-1)[0] || {};
       document.getElementById('accuracy').textContent = pct(perf.accuracy);
       document.getElementById('f1').textContent = pct(perf.macro_f1);
+      document.getElementById('window').textContent = (data.window_hours ?? 24) + 'h';
+      const cov = data.coverage?.coverage;
+      document.getElementById('coverage').textContent =
+        cov == null ? '—' : (cov * 100).toFixed(1) + '%';
       document.getElementById('history').innerHTML = (data.history || []).slice(-12).reverse().map(row =>
         `<tr><td>${row.timestamp}</td><td>${row.status}</td><td>${row.failed_tests ?? 0}</td><td>${row.num_drifted_columns ?? 0}</td><td>${pct(row.prediction_drift)}</td></tr>`
       ).join('');

@@ -198,6 +198,7 @@ tff
 /data/processed/
 /data/monitoring/
 /reports/monitoring/
+/reports/loadtest*
 /models/
 /reports/predictions.csv
 /reports/confusion_matrix.png

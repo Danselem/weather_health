@@ -89,6 +89,8 @@ def test_monitoring_endpoints():
     assert "latest" in payload
     assert "predictions" in payload
     assert "history" in payload
+    assert "coverage" in payload
+    assert "window_hours" in payload
 
 
 def test_rate_limit(monkeypatch):
@@ -122,5 +124,23 @@ def test_optional_api_key(monkeypatch):
         "/predict", json=payload, headers={"X-API-Key": "test-secret"}
     ).status_code == 200
     monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
+    reset_rate_limits()
+
+
+def test_request_coverage_logs_rejections(tmp_path, monkeypatch):
+    from service.app import reset_rate_limits
+    from src import prediction_store
+
+    monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "1")
+    reset_rate_limits()
+    payload = json.loads(Path("sample_input.json").read_text())
+    assert client.post("/predict", json=payload).status_code == 200
+    assert client.post("/predict", json=payload).status_code == 429
+    summary = prediction_store.request_summary(window_hours=1)
+    assert summary["requests"] == 2
+    assert summary["logged"] == 1
+    assert summary["coverage"] == 0.5
     monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
     reset_rate_limits()
