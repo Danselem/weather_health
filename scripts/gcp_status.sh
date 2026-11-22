@@ -27,6 +27,10 @@ gcloud artifacts repositories describe "$REPOSITORY" \
   --format='value(name,format)' 2>&1 || true
 
 echo "--- API ---"
-SERVICE_URL=$(resolve_service_url)
-curl -fsS "$SERVICE_URL/health" 2>&1 || true
+SERVICE_URL=$(resolve_service_url 2>/dev/null || true)
+if [ -n "$SERVICE_URL" ]; then
+  curl -fsS "$SERVICE_URL/health" 2>&1 || true
+else
+  echo "Cloud Run service not deployed"
+fi
 echo

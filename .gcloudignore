@@ -1,0 +1,17 @@
+# Keep model and feature-order artifacts in the Cloud Build context.
+.gcloudignore
+.git/
+.venv/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+infra-*/
+docs/
+reports/monitoring/
+notebook/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.trunk/
+.agents/

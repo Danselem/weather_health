@@ -46,5 +46,12 @@ else
   echo "Runtime service account not present: $RUNTIME_SA"
 fi
 
+echo "Removing demo IAM bindings"
+gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/cloudsql.client" --quiet >/dev/null 2>&1 || true
+gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:587752925399-compute@developer.gserviceaccount.com" \
+  --role="roles/cloudsql.client" --quiet >/dev/null 2>&1 || true
+
 echo "Demo resources removed."
-echo "Note: project-level IAM bindings added for the demo are not removed automatically."

@@ -8,7 +8,10 @@ source scripts/gcp_env.sh
 require_command curl
 require_command python3
 
-SERVICE_URL=$(resolve_service_url)
+if ! SERVICE_URL=$(resolve_service_url 2>/dev/null); then
+  echo "No Cloud Run service found. Run: make gcp-bootstrap && make gcp-deploy" >&2
+  exit 1
+fi
 echo "URL: $SERVICE_URL"
 
 echo -n "health:  "

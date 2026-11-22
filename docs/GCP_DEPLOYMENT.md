@@ -48,6 +48,7 @@ gcloud run deploy weather-health \
 ## Make targets
 
 ```bash
+make gcp-bootstrap   # recreate Cloud SQL, secret, runtime SA, registry
 make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs
@@ -56,6 +57,10 @@ make gcp-deploy-current  # fetch champion, then build + deploy
 make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
 make gcp-terraform-destroy          # Terraform-managed resources only
 ```
+
+After a teardown, run `make gcp-bootstrap` before `make gcp-deploy`.
+`gcp-deploy` falls back to Cloud Build when Docker is unavailable and refuses
+to run if Cloud SQL, the secret, or the runtime service account is missing.
 
 `gcp-destroy` refuses to run unless `CONFIRM=gcp-demo` is set. It does not
 touch `elyra-*` services, Terraform state, or unrelated IAM. `gcp-smoke`

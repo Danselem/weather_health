@@ -38,14 +38,11 @@ mlflow-check:
 # Project Initialization
 # -----------------------------------------------------------------------------
 
-init:                          ## Initialize new project with uv (creates .venv)
-	uv venv --python 3.10
-	uv init && rm hello.py
-	uv tool install black
+init:                          ## Create the uv environment and install locked dependencies
+	uv sync
 
-install:                      ## Install dependencies from requirements.txt into .venv
-	. .venv/bin/activate
-	uv add -r requirements.txt
+install:                      ## Install exactly the versions in uv.lock
+	uv sync --frozen
 
 delete:                       ## Remove all project files (uv.lock, pyproject.toml, .venv)
 	rm uv.lock pyproject.toml .python-version && rm -rf .venv
@@ -301,13 +298,13 @@ deployment:                ## Trigger a Prefect deployment run
 # -----------------------------------------------------------------------------
 
 build:                      ## Build canonical Docker image from repository root
-	docker build -t weather-health:v1.0 .
+	docker build -t weather-health:latest .
 
 run:                        ## Run containerized service on port 8080
-	docker run -it --rm -p 8080:8080 weather-health:v1.0
+	docker run -it --rm -p 8080:8080 weather-health:latest
 
 load-kind:                  ## Load Docker image into kind cluster
-	kind load docker-image weather-health:v1.0 --name weather-health
+	kind load docker-image weather-health:latest --name weather-health
 
 # -----------------------------------------------------------------------------
 # Kubernetes
@@ -362,8 +359,8 @@ fetch-model:                ## Fetch best model from MLflow to models/
 	@echo "Fetching best model from MLflow..."
 	uv run -m src.fetch_best_model
 
-docker-build:               ## Build Docker image locally
-	docker build -t weather-health:latest .
+docker-build:               ## Alias for the canonical image build
+	@$(MAKE) build
 
 docker-build-prod:          ## Build Docker image with production model
 	@make fetch-model || exit 1
@@ -421,7 +418,10 @@ gcp-plan:                ## Plan GCP infrastructure changes
 		-var-file=$${GCP_TFVARS:-environments/prod/terraform.tfvars} \
 		-var="project_id=$$PROJECT_ID" -var="region=$$REGION"
 
-gcp-deploy:              ## Build amd64 image and deploy to Cloud Run
+gcp-bootstrap:           ## Recreate Cloud SQL, secret, runtime SA, registry after teardown
+	./scripts/gcp_bootstrap.sh
+
+gcp-deploy:              ## Build amd64 image and deploy to Cloud Run (requires bootstrap)
 	./scripts/gcp_deploy.sh
 
 gcp-deploy-current:      ## Fetch champion, then build and deploy
