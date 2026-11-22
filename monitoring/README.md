@@ -93,6 +93,20 @@ make performance
 This joins `/feedback` labels to predictions and writes accuracy/macro F1 to
 `performance_metrics` for the Grafana panel.
 
+## Scheduled GCP job
+
+The live demo also runs the same Evidently flow as a Cloud Run Job:
+
+```bash
+make gcp-monitoring-deploy   # build image, create job + 06:00 UTC schedule
+make gcp-monitoring-run      # execute once
+make gcp-monitoring-status   # recent executions + scheduler state
+```
+
+The job uses `PREDICTION_DB_URL` from Secret Manager, the Cloud SQL
+connector, and `--no-prefect` (the Prefect engine is not needed inside the
+job). It exits non-zero on drift.
+
 ## Retention
 
 ```bash

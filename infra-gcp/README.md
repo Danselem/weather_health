@@ -4,9 +4,8 @@ Terraform for the Cloud Run deployment of the weather-health API.
 
 > **Live demo:** https://weather-health-587752925399.us-central1.run.app/docs
 >
-> The live resources were initially created with `gcloud`. The Terraform
-> configuration now models them, but adopting the existing resources requires
-> imports (see [docs/GCP_DEPLOYMENT.md](../docs/GCP_DEPLOYMENT.md)).
+> The live resources have been imported into Terraform. State lives in
+> `gs://scenic-dynamo-447811-m9-tfstate` under `weather-health/prod`.
 
 ## Architecture
 
@@ -44,13 +43,18 @@ terraform plan -var-file=environments/dev/terraform.tfvars
 terraform apply -var-file=environments/dev/terraform.tfvars
 ```
 
-The root module uses local state today. Add a GCS backend before using this as
-a team-owned stack.
+The root module uses a GCS backend. Initialize with:
 
-## Adopting the live demo
+```bash
+terraform init -backend-config=backend.hcl
+```
 
-The live Cloud SQL instance, secret, Artifact Registry, and Cloud Run service
-were created manually. Import them before applying this configuration:
+See `backend.hcl.example`.
+
+## Adopting a new live stack
+
+The current live stack is already imported. For a new environment, import the
+same resources after creating them or import an existing stack:
 
 ```bash
 cd infra-gcp

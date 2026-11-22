@@ -38,13 +38,13 @@ variable "root_password" {
 variable "deletion_protection" {
   description = "Enable Cloud SQL deletion protection"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "backups_enabled" {
   description = "Enable automated backups"
   type        = bool
-  default     = false
+  default     = true
 }
 
 resource "google_sql_database_instance" "this" {
@@ -54,12 +54,17 @@ resource "google_sql_database_instance" "this" {
   database_version    = "POSTGRES_16"
   deletion_protection = var.deletion_protection
 
+  lifecycle {
+    ignore_changes = [root_password]
+  }
+
   settings {
-    tier              = var.tier
-    edition           = "ENTERPRISE"
-    availability_type = "ZONAL"
-    disk_size         = 10
-    disk_type         = "PD_SSD"
+    tier                        = var.tier
+    edition                     = "ENTERPRISE"
+    availability_type           = "ZONAL"
+    deletion_protection_enabled = var.deletion_protection
+    disk_size                   = 10
+    disk_type                   = "PD_SSD"
 
     backup_configuration {
       enabled = var.backups_enabled

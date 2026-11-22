@@ -421,6 +421,19 @@ gcp-plan:                ## Plan GCP infrastructure changes
 gcp-bootstrap:           ## Recreate Cloud SQL, secret, runtime SA, registry after teardown
 	./scripts/gcp_bootstrap.sh
 
+gcp-harden:              ## Enable SQL backups/deletion protection and a budget alert
+	./scripts/gcp_harden.sh
+
+gcp-monitoring-deploy:   ## Build/deploy the scheduled Evidently Cloud Run Job
+	./scripts/gcp_monitoring_deploy.sh
+
+gcp-monitoring-run:      ## Execute the monitoring job once
+	gcloud run jobs execute weather-health-monitoring --region us-central1 --project scenic-dynamo-447811-m9 --wait
+
+gcp-monitoring-status:   ## Show recent monitoring executions and scheduler state
+	gcloud run jobs executions list --job weather-health-monitoring --region us-central1 --project scenic-dynamo-447811-m9 --limit 5
+	gcloud scheduler jobs describe weather-health-monitoring-daily --location us-central1 --project scenic-dynamo-447811-m9 --format='value(state,schedule,scheduleTime)'
+
 gcp-deploy:              ## Build amd64 image and deploy to Cloud Run (requires bootstrap)
 	./scripts/gcp_deploy.sh
 

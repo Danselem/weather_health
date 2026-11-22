@@ -16,7 +16,8 @@ This will delete:
   Secret:             $SECRET_ID
   Artifact Registry:  $REPOSITORY
 
-It will NOT delete elyra-* services, Terraform state, or unrelated IAM.
+It will destroy Terraform-managed resources when Terraform state exists.
+elyra-* services and unrelated IAM are left alone.
 Re-run with: CONFIRM=gcp-demo make gcp-destroy
 EOF
   exit 1
@@ -24,6 +25,24 @@ fi
 
 require_command gcloud
 
+STATE_COUNT=0
+if command -v terraform >/dev/null 2>&1 && [ -f infra-gcp/backend.hcl ]; then
+  STATE_COUNT=$(cd infra-gcp && terraform state list 2>/dev/null | wc -l | tr -d ' ')
+fi
+
+if [ "$STATE_COUNT" -gt 0 ]; then
+  echo "Terraform state found; destroying managed demo resources."
+  gcloud sql instances patch "$SQL_INSTANCE" --no-deletion-protection \
+    --project "$PROJECT_ID" --quiet || true
+  cd infra-gcp
+  terraform destroy \
+    -var-file=environments/prod/terraform.tfvars \
+    -var="project_id=$PROJECT_ID" -var="region=$REGION" \
+    -auto-approve
+  exit 0
+fi
+
+echo "No Terraform state found; deleting live resources with gcloud."
 echo "Deleting Cloud Run service: $SERVICE"
 gcloud run services delete "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --quiet || true
 

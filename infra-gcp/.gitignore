@@ -43,3 +43,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+# Remote state config
+backend.hcl

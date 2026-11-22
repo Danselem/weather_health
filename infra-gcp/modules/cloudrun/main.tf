@@ -130,10 +130,10 @@ resource "google_cloud_run_service" "this" {
           for_each = var.secret_environment_variables
           content {
             name = env.key
-            value_source {
+            value_from {
               secret_key_ref {
-                secret  = env.value
-                version = "latest"
+                name = env.value
+                key  = "latest"
               }
             }
           }

@@ -1,0 +1,20 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY monitoring/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src ./src
+COPY config ./config
+COPY params.yaml .
+COPY data/processed/reference.parquet ./data/processed/reference.parquet
+
+ENV PYTHONUNBUFFERED=1 \
+    ENVIRONMENT=prod
+
+CMD ["python", "-m", "src.evidently_metrics", "--no-prefect", "--fail-on-drift"]

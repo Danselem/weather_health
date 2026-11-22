@@ -1,0 +1,2 @@
+bucket = "scenic-dynamo-447811-m9-tfstate"
+prefix = "weather-health/prod"

@@ -32,7 +32,7 @@ module "gcs_artifacts" {
 module "cloudrun" {
   source = "./modules/cloudrun"
 
-  name       = "${var.app_name}-${var.environment}"
+  name       = var.service_name
   location   = var.region
   project_id = var.project_id
   image      = var.container_image != "" ? var.container_image : "nginx:latest"

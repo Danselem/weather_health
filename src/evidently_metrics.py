@@ -135,13 +135,13 @@ def run_evidently(
     return metrics
 
 
-@flow(name="monitoring")
-def monitoring_flow(
+def run_monitoring(
     current_path: str | None = None,
     limit: int = 5000,
     fail_on_drift: bool = False,
     trigger_retrain_on_failure: bool = False,
 ) -> dict[str, Any]:
+    """Plain runner used by the Cloud Run Job and by the Prefect flow."""
     cfg = load_config("config")
     reference_path = Path(cfg.artifacts.reference_path)
     if not reference_path.exists():
@@ -152,7 +152,7 @@ def monitoring_flow(
     reference = pd.read_parquet(reference_path)
     reference_columns = [c for c in reference.columns if c != "true_label"]
     current = _load_current(reference_columns, current_path, limit)
-    metrics = run_evidently(reference, current, cfg.monitoring.reports_dir)
+    metrics = run_evidently.fn(reference, current, cfg.monitoring.reports_dir)
 
     if metrics["failed_tests"]:
         send_alert(metrics)
@@ -173,14 +173,31 @@ def monitoring_flow(
     return cast(dict[str, Any], metrics)
 
 
+@flow(name="monitoring")
+def monitoring_flow(
+    current_path: str | None = None,
+    limit: int = 5000,
+    fail_on_drift: bool = False,
+    trigger_retrain_on_failure: bool = False,
+) -> dict[str, Any]:
+    return run_monitoring(
+        current_path=current_path,
+        limit=limit,
+        fail_on_drift=fail_on_drift,
+        trigger_retrain_on_failure=trigger_retrain_on_failure,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--current-path", default=None)
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--fail-on-drift", action="store_true")
     parser.add_argument("--trigger-retrain", action="store_true")
+    parser.add_argument("--no-prefect", action="store_true")
     args = parser.parse_args()
-    monitoring_flow(
+    runner = run_monitoring if args.no_prefect else monitoring_flow
+    runner(
         current_path=args.current_path,
         limit=args.limit,
         fail_on_drift=args.fail_on_drift,

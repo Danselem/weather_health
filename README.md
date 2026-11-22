@@ -97,6 +97,10 @@ Postgres; the compose stack remains the local monitoring dashboard.
 
 ```bash
 make gcp-bootstrap   # recreate Cloud SQL, secret, runtime SA, registry after teardown
+make gcp-harden      # SQL backups, deletion protection, budget alert
+make gcp-monitoring-deploy  # scheduled Evidently Cloud Run Job
+make gcp-monitoring-run     # execute monitoring once
+make gcp-monitoring-status  # job/scheduler status
 make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs

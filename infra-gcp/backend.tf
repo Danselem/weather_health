@@ -1,12 +1,6 @@
-# =============================================================================
-# GCP Backend Configuration
-# =============================================================================
-# For local development: uses local state file.
-# For production/team: change to GCS backend.
-# =============================================================================
-
+# Remote state. Initialize with:
+#   terraform init -backend-config=backend.hcl
+# See backend.hcl.example.
 terraform {
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  backend "gcs" {}
 }

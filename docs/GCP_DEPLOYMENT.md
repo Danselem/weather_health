@@ -15,6 +15,9 @@
 | Database | Cloud SQL Postgres `weather-health-db` |
 | Secret | `weather-health-db-url` |
 | Max instances | `5` |
+| Monitoring job | `weather-health-monitoring` |
+| Scheduler | `weather-health-monitoring-daily` (06:00 UTC) |
+| Terraform state | `gs://scenic-dynamo-447811-m9-tfstate` |
 
 The live service connects to Cloud SQL through the Cloud Run connector and
 stores predictions in the `weatherhealth` database. The database uses a
@@ -49,6 +52,10 @@ gcloud run deploy weather-health \
 
 ```bash
 make gcp-bootstrap   # recreate Cloud SQL, secret, runtime SA, registry
+make gcp-harden      # backups, deletion protection, budget alert
+make gcp-monitoring-deploy  # scheduled Evidently Cloud Run Job
+make gcp-monitoring-run     # execute once
+make gcp-monitoring-status  # execution and scheduler status
 make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs
@@ -58,12 +65,16 @@ make gcp-destroy CONFIRM=gcp-demo   # delete only the demo resources
 make gcp-terraform-destroy          # Terraform-managed resources only
 ```
 
-After a teardown, run `make gcp-bootstrap` before `make gcp-deploy`.
+After a Terraform teardown, recreate infrastructure with `terraform apply`,
+then run `make gcp-deploy`. `make gcp-bootstrap` is an emergency gcloud-only
+recovery path, not the primary redeploy path.
 `gcp-deploy` falls back to Cloud Build when Docker is unavailable and refuses
 to run if Cloud SQL, the secret, or the runtime service account is missing.
 
-`gcp-destroy` refuses to run unless `CONFIRM=gcp-demo` is set. It does not
-touch `elyra-*` services, Terraform state, or unrelated IAM. `gcp-smoke`
+`gcp-destroy` refuses to run unless `CONFIRM=gcp-demo` is set. It is
+Terraform-aware: if state exists it disables SQL deletion protection and runs
+`terraform destroy`; otherwise it falls back to targeted `gcloud` deletes.
+It does not touch `elyra-*` services or unrelated IAM. `gcp-smoke`
 resolves the live URL from Cloud Run, so it keeps working if the service URL
 changes. `gcp-deploy` reads `MODEL_VERSION` from `models/model_metadata.json`
 when available; set `FETCH_MODEL=1` or use `gcp-deploy-current` to fetch the
@@ -120,6 +131,17 @@ Before using it as the source of truth:
 - import the existing live resources (see `infra-gcp/README.md`);
 - decide whether Terraform or `gcloud run deploy` owns image updates.
 
+## Scheduled monitoring
+
+The monitoring job runs the Evidently flow with `--no-prefect` (Prefect's
+engine is not needed in the job) against Cloud SQL. It writes
+`monitoring_metrics`, and the job fails on drift so Cloud Scheduler can alert.
+
+```bash
+make gcp-monitoring-status
+make gcp-monitoring-run
+```
+
 ## Required permissions for a clean deploy
 
 The current `terraform@` service account can create Artifact Registry
@@ -127,7 +149,7 @@ repositories, deploy Cloud Run, manage buckets, and create secrets. The Cloud
 Run runtime service account needs `roles/cloudsql.client` and
 `roles/secretmanager.secretAccessor`.
 
-`infra-gcp/` now models Cloud SQL, the Secret Manager secret, the runtime
-service account, and the Cloud Run connector. The live resources were created
-with `gcloud` first; see `infra-gcp/README.md` for import commands before
-treating Terraform as the source of truth.
+`infra-gcp/` now owns the live resources via a GCS backend and imports for
+Cloud SQL, the secret, Artifact Registry, runtime service account, and Cloud
+Run. `terraform plan` reports no changes. State is stored in
+`gs://scenic-dynamo-447811-m9-tfstate` under `weather-health/prod`.
