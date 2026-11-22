@@ -146,9 +146,11 @@ resource "google_cloud_run_service" "this" {
     metadata {
       annotations = merge(
         {
-          "autoscaling.knative.dev/minScale" = var.min_instances
           "autoscaling.knative.dev/maxScale" = var.max_instances
         },
+        var.min_instances > 0 ? {
+          "autoscaling.knative.dev/minScale" = var.min_instances
+        } : {},
         length(var.cloudsql_instances) == 0 ? {} : {
           "run.googleapis.com/cloudsql-instances" = join(",", var.cloudsql_instances)
         }
@@ -164,6 +166,8 @@ resource "google_cloud_run_service" "this" {
   lifecycle {
     ignore_changes = [
       template[0].spec[0].containers[0].image,
+      template[0].metadata[0].annotations["run.googleapis.com/client-name"],
+      template[0].metadata[0].annotations["run.googleapis.com/client-version"],
     ]
   }
 

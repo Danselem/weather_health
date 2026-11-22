@@ -4,16 +4,19 @@ import json
 import logging
 import os
 import pickle
+import secrets
+import threading
 import time
 import uuid
+from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import uvicorn
-from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import Body, FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -31,6 +34,45 @@ FEATURE_ORDER_PATH = Path(
 )
 SAMPLE_INPUT_PATH = Path(os.getenv("SAMPLE_INPUT_PATH", "sample_input.json"))
 MODEL_VERSION = os.getenv("MODEL_VERSION", "unknown")
+MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", "32768"))
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+_rate_buckets: dict[str, deque[float]] = defaultdict(deque)
+_rate_lock = threading.Lock()
+
+
+def reset_rate_limits() -> None:
+    with _rate_lock:
+        _rate_buckets.clear()
+
+
+def check_rate_limit(request: Request, endpoint: str) -> None:
+    limit = int(os.getenv("RATE_LIMIT_PER_MINUTE", str(RATE_LIMIT_PER_MINUTE)))
+    if limit <= 0:
+        return
+    client = request.client.host if request.client else "unknown"
+    bucket = f"{client}:{endpoint}"
+    now = time.time()
+    with _rate_lock:
+        queue = _rate_buckets[bucket]
+        while queue and now - queue[0] >= 60:
+            queue.popleft()
+        if len(queue) >= limit:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded",
+                headers={"Retry-After": "60"},
+            )
+        queue.append(now)
+
+
+def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    configured = os.getenv("API_KEY", "")
+    if not configured:
+        return
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key header required")
+    if not secrets.compare_digest(x_api_key, configured):
+        raise HTTPException(status_code=403, detail="Invalid API key")
 
 
 def load_sample_payload() -> dict[str, Any]:
@@ -104,6 +146,14 @@ class PredictionRequest(BaseModel):
     )
 
 
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next: Any) -> Any:
+    length = request.headers.get("content-length")
+    if length and int(length) > MAX_REQUEST_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "Request too large"})
+    return await call_next(request)
+
+
 @app.get("/", tags=["Health"])
 @app.get("/health", tags=["Health"])
 def health() -> dict[str, str]:
@@ -143,8 +193,24 @@ def demo() -> str:
     return DEMO_HTML
 
 
+@app.get("/monitoring.json", tags=["Health"])
+def monitoring_json() -> dict[str, Any]:
+    return prediction_store.monitoring_summary()
+
+
+@app.get("/monitoring", response_class=HTMLResponse, tags=["Health"])
+def monitoring_dashboard() -> str:
+    return MONITORING_HTML
+
+
 @app.post("/feedback", tags=["Prediction"])
-def feedback(payload: FeedbackRequest) -> dict[str, Any]:
+def feedback(
+    request: Request,
+    payload: FeedbackRequest,
+    x_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    check_rate_limit(request, "feedback")
+    require_api_key(x_api_key)
     _, encoder, _ = load_artifacts()
     if payload.true_label not in set(encoder.classes_):
         raise HTTPException(status_code=400, detail="Unknown label")
@@ -155,12 +221,14 @@ def feedback(payload: FeedbackRequest) -> dict[str, Any]:
 
 
 @app.get("/stats", tags=["Health"])
-def prediction_stats() -> dict[str, Any]:
+def prediction_stats(request: Request) -> dict[str, Any]:
+    check_rate_limit(request, "stats")
     return prediction_store.stats()
 
 
 @app.post("/predict", tags=["Prediction"])
 def predict(
+    request: Request,
     payload: PredictionRequest = Body(
         ...,
         openapi_examples={
@@ -171,7 +239,10 @@ def predict(
             }
         },
     ),
+    x_api_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    check_rate_limit(request, "predict")
+    require_api_key(x_api_key)
     request_id = str(uuid.uuid4())
     started = time.perf_counter()
     try:
@@ -249,6 +320,65 @@ def predict(
         raise HTTPException(status_code=500, detail="Prediction failed") from err
 
 
+MONITORING_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather-Health Monitoring</title>
+  <style>
+    :root { color-scheme: light dark; --accent:#2563eb; --muted:#6b7280; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+           max-width: 1100px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { margin-bottom:.2rem; } .muted { color:var(--muted); margin-top:0; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; }
+    .card { border:1px solid #cbd5e1; border-radius:10px; padding:1rem; }
+    .big { font-size:1.8rem; font-weight:700; } .ok { color:#15803d; } .bad { color:#b91c1c; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; font-size:13px; }
+    th,td { border-bottom:1px solid #e2e8f0; padding:.45rem; text-align:left; }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>Weather-Health Monitoring</h1>
+  <p class="muted">Live Cloud SQL metrics. <a href="/demo">Demo</a> · <a href="/docs">Swagger</a> · <a href="/monitoring.json">JSON</a></p>
+  <div class="cards">
+    <div class="card"><div class="muted">Drift status</div><div id="status" class="big">…</div></div>
+    <div class="card"><div class="muted">Failed tests</div><div id="failed" class="big">…</div></div>
+    <div class="card"><div class="muted">Prediction drift</div><div id="drift" class="big">…</div></div>
+    <div class="card"><div class="muted">Predictions logged</div><div id="count" class="big">…</div></div>
+    <div class="card"><div class="muted">Accuracy</div><div id="accuracy" class="big">…</div></div>
+    <div class="card"><div class="muted">Macro F1</div><div id="f1" class="big">…</div></div>
+  </div>
+  <h2>Recent monitoring windows</h2>
+  <table><thead><tr><th>Timestamp</th><th>Status</th><th>Failed tests</th><th>Drifted columns</th><th>Prediction drift</th></tr></thead>
+  <tbody id="history"></tbody></table>
+  <script>
+    function pct(value) { return value == null ? "–" : Number(value).toFixed(4); }
+    async function load() {
+      const response = await fetch('/monitoring.json');
+      const data = await response.json();
+      const latest = data.latest || {};
+      const status = document.getElementById('status');
+      status.textContent = latest.status || 'no data';
+      status.className = 'big ' + (latest.status === 'failed' ? 'bad' : 'ok');
+      document.getElementById('failed').textContent = latest.failed_tests ?? 0;
+      document.getElementById('drift').textContent = pct(latest.prediction_drift);
+      document.getElementById('count').textContent = data.predictions?.count ?? 0;
+      const perf = (data.performance || []).slice(-1)[0] || {};
+      document.getElementById('accuracy').textContent = pct(perf.accuracy);
+      document.getElementById('f1').textContent = pct(perf.macro_f1);
+      document.getElementById('history').innerHTML = (data.history || []).slice(-12).reverse().map(row =>
+        `<tr><td>${row.timestamp}</td><td>${row.status}</td><td>${row.failed_tests ?? 0}</td><td>${row.num_drifted_columns ?? 0}</td><td>${pct(row.prediction_drift)}</td></tr>`
+      ).join('');
+    }
+    load(); setInterval(load, 30000);
+  </script>
+</body>
+</html>
+"""
+
+
 DEMO_HTML = """<!doctype html>
 <html lang="en">
 <head>
@@ -280,6 +410,8 @@ DEMO_HTML = """<!doctype html>
     <a href="/docs">Swagger</a> · <a href="/health">health</a> · <a href="/stats">stats</a></p>
   <div class="grid">
     <div>
+      <label for="apikey"><strong>API key (only if enabled)</strong></label>
+      <input id="apikey" placeholder="X-API-Key" style="width:100%;padding:.5rem;margin:.25rem 0 .75rem;border:1px solid #cbd5e1;border-radius:6px;">
       <label for="payload"><strong>Request payload</strong></label>
       <textarea id="payload" spellcheck="false"></textarea>
       <div>
@@ -306,9 +438,12 @@ DEMO_HTML = """<!doctype html>
       const out = document.getElementById('result');
       try {
         const payload = JSON.parse(document.getElementById('payload').value);
+        const headers = {'Content-Type': 'application/json'};
+        const key = document.getElementById('apikey').value.trim();
+        if (key) headers['X-API-Key'] = key;
         const response = await fetch('/predict', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: headers,
           body: JSON.stringify(payload)
         });
         const data = await response.json();
@@ -326,9 +461,12 @@ DEMO_HTML = """<!doctype html>
       }
       const label = prompt('True label:', 'Heat Stroke');
       if (!label) return;
+      const headers = {'Content-Type': 'application/json'};
+      const key = document.getElementById('apikey').value.trim();
+      if (key) headers['X-API-Key'] = key;
       const response = await fetch('/feedback', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: JSON.stringify({request_id: lastRequestId, true_label: label})
       });
       out.textContent = JSON.stringify(await response.json(), null, 2);

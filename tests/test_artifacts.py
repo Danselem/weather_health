@@ -79,3 +79,48 @@ def test_prediction_logging_and_feedback(tmp_path, monkeypatch):
         json={"request_id": body["request_id"], "true_label": body["prediction"]},
     )
     assert feedback.status_code == 200
+
+
+def test_monitoring_endpoints():
+    response = client.get("/monitoring")
+    assert response.status_code == 200
+    assert "Weather-Health Monitoring" in response.text
+    payload = client.get("/monitoring.json").json()
+    assert "latest" in payload
+    assert "predictions" in payload
+    assert "history" in payload
+
+
+def test_rate_limit(monkeypatch):
+    from service.app import reset_rate_limits
+
+    monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "2")
+    reset_rate_limits()
+    payload = json.loads(Path("sample_input.json").read_text())
+    first = client.post("/predict", json=payload)
+    second = client.post("/predict", json=payload)
+    third = client.post("/predict", json=payload)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 429
+    reset_rate_limits()
+    monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
+
+
+def test_optional_api_key(monkeypatch):
+    from service.app import reset_rate_limits
+
+    monkeypatch.setenv("API_KEY", "test-secret")
+    monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "0")
+    reset_rate_limits()
+    payload = json.loads(Path("sample_input.json").read_text())
+    assert client.post("/predict", json=payload).status_code == 401
+    assert client.post(
+        "/predict", json=payload, headers={"X-API-Key": "wrong"}
+    ).status_code == 403
+    assert client.post(
+        "/predict", json=payload, headers={"X-API-Key": "test-secret"}
+    ).status_code == 200
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.delenv("RATE_LIMIT_PER_MINUTE", raising=False)
+    reset_rate_limits()

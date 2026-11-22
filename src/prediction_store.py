@@ -256,3 +256,64 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.command == "prune":
         print(f"Deleted {prune_predictions(args.days)} prediction rows")
+
+
+def _fetch(sql: str, params: tuple = ()) -> pd.DataFrame:
+    init_db()
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        columns = [desc[0] for desc in cur.description]
+        rows = cur.fetchall()
+    return pd.DataFrame(rows, columns=columns)
+
+
+def recent_monitoring_metrics(limit: int = 50) -> pd.DataFrame:
+    return _fetch(
+        "SELECT * FROM monitoring_metrics ORDER BY timestamp DESC LIMIT " + str(int(limit))
+    ).sort_values("timestamp").reset_index(drop=True)
+
+
+def recent_performance_metrics(limit: int = 50) -> pd.DataFrame:
+    return _fetch(
+        "SELECT * FROM performance_metrics ORDER BY timestamp DESC LIMIT " + str(int(limit))
+    ).sort_values("timestamp").reset_index(drop=True)
+
+
+def prediction_summary() -> dict[str, Any]:
+    frame = _fetch(
+        "SELECT COUNT(*) AS count, MAX(timestamp) AS latest, "
+        "SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors, "
+        "AVG(confidence) AS avg_confidence FROM predictions"
+    )
+    if frame.empty:
+        return {"count": 0, "latest": None, "errors": 0, "avg_confidence": None}
+    row = frame.iloc[0]
+    return {
+        "count": int(row["count"] or 0),
+        "latest": str(row["latest"]) if pd.notna(row["latest"]) else None,
+        "errors": int(row["errors"] or 0),
+        "avg_confidence": float(row["avg_confidence"])
+        if pd.notna(row["avg_confidence"])
+        else None,
+    }
+
+
+def monitoring_summary() -> dict[str, Any]:
+    metrics = recent_monitoring_metrics()
+    performance = recent_performance_metrics()
+    latest = metrics.iloc[-1].to_dict() if not metrics.empty else None
+    if latest:
+        latest["timestamp"] = str(latest["timestamp"])
+    return {
+        "latest": latest,
+        "history": [
+            {**row, "timestamp": str(row["timestamp"])}
+            for row in metrics.to_dict(orient="records")
+        ],
+        "performance": [
+            {**row, "timestamp": str(row["timestamp"])}
+            for row in performance.to_dict(orient="records")
+        ],
+        "predictions": prediction_summary(),
+    }

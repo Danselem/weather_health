@@ -80,6 +80,7 @@ data flow, and design decisions.
 ## Live demo
 
 - **Demo UI:** https://weather-health-587752925399.us-central1.run.app/demo
+- **Monitoring:** https://weather-health-587752925399.us-central1.run.app/monitoring
 - **Swagger:** https://weather-health-587752925399.us-central1.run.app/docs
 - **Health:** https://weather-health-587752925399.us-central1.run.app/health
 - **Prediction:** `POST /predict`
@@ -89,7 +90,9 @@ curl -s -X POST https://weather-health-587752925399.us-central1.run.app/predict 
   -H 'Content-Type: application/json' --data @sample_input.json
 ```
 
-The deployed model reports MLflow version `1` at `/version`.
+The deployed model reports MLflow version `1` at `/version`. `/predict` and
+`/feedback` are rate-limited (60 req/min per instance/IP); set `API_KEY` to
+require `X-API-Key` on those endpoints.
 Cloud Run is capped at five instances and writes predictions to Cloud SQL
 Postgres; the compose stack remains the local monitoring dashboard.
 

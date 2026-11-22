@@ -9,6 +9,7 @@
 | Cloud Run service | `weather-health` |
 | URL | https://weather-health-587752925399.us-central1.run.app |
 | Demo UI | https://weather-health-587752925399.us-central1.run.app/demo |
+| Monitoring | https://weather-health-587752925399.us-central1.run.app/monitoring |
 | Swagger | https://weather-health-587752925399.us-central1.run.app/docs |
 | Image | `us-central1-docker.pkg.dev/scenic-dynamo-447811-m9/weather-health/weather-health:<timestamp>` |
 | Model version | `1` (MLflow) |
@@ -56,6 +57,10 @@ make gcp-harden      # backups, deletion protection, budget alert
 make gcp-monitoring-deploy  # scheduled Evidently Cloud Run Job
 make gcp-monitoring-run     # execute once
 make gcp-monitoring-status  # execution and scheduler status
+
+API protection: `/predict` and `/feedback` default to 60 requests/minute per
+instance/IP. Set the `API_KEY` env var to require `X-API-Key`; `/demo` includes
+an optional key field.
 make gcp-smoke       # health, ready, version, predict, feedback, stats
 make gcp-status      # Cloud Run, Cloud SQL, secret, registry
 make gcp-logs        # recent Cloud Run logs

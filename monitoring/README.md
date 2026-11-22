@@ -93,6 +93,12 @@ make performance
 This joins `/feedback` labels to predictions and writes accuracy/macro F1 to
 `performance_metrics` for the Grafana panel.
 
+## Live dashboard
+
+The Cloud Run API serves a read-only monitoring page at `/monitoring` and
+`/monitoring.json`. It reads `monitoring_metrics` and `performance_metrics`
+from Cloud SQL.
+
 ## Scheduled GCP job
 
 The live demo also runs the same Evidently flow as a Cloud Run Job:
