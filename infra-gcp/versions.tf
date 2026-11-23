@@ -135,3 +135,8 @@ locals {
     managed_by  = "terraform"
   }
 }
+variable "alert_email" {
+  description = "Email address for uptime alerts"
+  type        = string
+  default     = "danoegbo@gmail.com"
+}

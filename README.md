@@ -94,7 +94,8 @@ The deployed model reports MLflow version `1` at `/version`. `/predict` and
 `/feedback` are rate-limited (60 req/min per instance/IP); set `API_KEY` to
 require `X-API-Key` on those endpoints.
 Cloud Run is capped at five instances and writes predictions to Cloud SQL
-Postgres; the compose stack remains the local monitoring dashboard.
+Postgres. Uptime and drift alerts are configured through Cloud Monitoring email
+channels. The compose stack remains the local Grafana dashboard.
 
 ### Live GCP operations
 

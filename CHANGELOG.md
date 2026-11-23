@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 — Live demo and observability
+
+- Cloud Run + Cloud SQL live demo with persistent predictions.
+- Terraform owns the live GCP stack; state in GCS.
+- Cloud SQL backups, deletion protection, and a monthly budget.
+- Scheduled Cloud Run monitoring job and daily Cloud Scheduler trigger.
+- In-app `/monitoring` dashboard and JSON endpoint.
+- Request-level coverage, retry, dead-letter, and optional strict logging.
+- Optional API key, rate limiting, and request-size limits.
+- Locust load-test profile; local benchmark p95 27 ms.
+- Email uptime and drift alerts via Cloud Monitoring.
+
+
 ## 0.4.0 — Monitoring and scientific evaluation
 
 - Prediction logging, `/feedback`, `/stats`, confidence and top-k.

@@ -99,6 +99,12 @@ The Cloud Run API serves a read-only monitoring page at `/monitoring` and
 `/monitoring.json`. It reads `monitoring_metrics` and `performance_metrics`
 from Cloud SQL.
 
+## Live alerts
+
+Cloud Monitoring provides an uptime check for `/health` and a log-based
+alert on `Drift gate failed`. The notification channel is configured by the
+`alert_email` Terraform variable.
+
 ## Scheduled GCP job
 
 The live demo also runs the same Evidently flow as a Cloud Run Job:

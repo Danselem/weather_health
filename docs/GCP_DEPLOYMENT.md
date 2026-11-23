@@ -136,6 +136,12 @@ Before using it as the source of truth:
 - import the existing live resources (see `infra-gcp/README.md`);
 - decide whether Terraform or `gcloud run deploy` owns image updates.
 
+## Alerts and uptime
+
+- Cloud Monitoring uptime check: `/health` every 60 seconds.
+- Email notification channel: `alert_email` Terraform variable.
+- Drift alert policy: fires on `Drift gate failed` logs from the monitoring job.
+
 ## Scheduled monitoring
 
 The monitoring job runs the Evidently flow with `--no-prefect` (Prefect's
