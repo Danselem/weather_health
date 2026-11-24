@@ -1,5 +1,6 @@
 """Compute model performance from matured /feedback labels."""
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +12,10 @@ from src import prediction_store
 def compute_performance(limit: int = 5000) -> dict[str, Any] | None:
     labeled = prediction_store.fetch_labeled_predictions(limit=limit)
     if labeled.empty:
+        return None
+    min_labels = int(os.getenv("MONITORING_MIN_LABELS", "20"))
+    if len(labeled) < min_labels:
+        print(f"insufficient_labels: {len(labeled)} labels (minimum {min_labels})")
         return None
 
     y_true = labeled["true_label"].tolist()

@@ -64,7 +64,10 @@ def init_db() -> None:
         num_drifted_columns INTEGER,
         share_missing_values DOUBLE PRECISION,
         failed_tests INTEGER,
-        status TEXT
+        status TEXT,
+        window_hours INTEGER,
+        current_rows INTEGER,
+        min_rows INTEGER
     )
     """
     performance_ddl = f"""
@@ -99,6 +102,10 @@ def init_db() -> None:
             cur.execute(statement)
         conn.commit()
 
+    _ensure_column("monitoring_metrics", "window_hours", "INTEGER")
+    _ensure_column("monitoring_metrics", "current_rows", "INTEGER")
+    _ensure_column("monitoring_metrics", "min_rows", "INTEGER")
+
 
 def _write_dead_letter(record: dict[str, Any], error: Exception) -> None:
     path = Path(os.getenv("DEAD_LETTER_PATH", "data/monitoring/dead_letter.jsonl"))
@@ -110,6 +117,29 @@ def _write_dead_letter(record: dict[str, Any], error: Exception) -> None:
     }
     with path.open("a", encoding="utf-8") as file:
         file.write(json.dumps(payload) + "\n")
+
+
+def _ensure_column(table: str, column: str, column_type: str) -> None:
+    """Small compatibility migration for existing SQLite/Postgres tables."""
+    try:
+        with _connect() as conn:
+            cur = conn.cursor()
+            if _is_postgres():
+                cur.execute(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = %s AND column_name = %s",
+                    (table, column),
+                )
+                exists = cur.fetchone() is not None
+            else:
+                cur.execute(f"PRAGMA table_info({table})")
+                exists = any(row[1] == column for row in cur.fetchall())
+            if not exists:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
+            conn.commit()
+    except Exception:
+        # The caller will retry on the next startup; do not block logging.
+        pass
 
 
 def log_prediction(record: dict[str, Any], retries: int = 2) -> None:
@@ -208,12 +238,16 @@ def save_monitoring_metrics(metrics: dict[str, Any]) -> None:
         float(metrics.get("share_missing_values", 0.0)),
         int(metrics.get("failed_tests", 0)),
         metrics.get("status", "ok"),
+        int(metrics.get("window_hours", 24)),
+        int(metrics.get("current_rows", 0)),
+        int(metrics.get("min_rows", 300)),
     )
     sql = f"""
     INSERT INTO monitoring_metrics
     (timestamp, prediction_drift, num_drifted_columns,
-     share_missing_values, failed_tests, status)
-    VALUES ({", ".join([_placeholder()] * 6)})
+     share_missing_values, failed_tests, status,
+     window_hours, current_rows, min_rows)
+    VALUES ({", ".join([_placeholder()] * 9)})
     """
     with _connect() as conn:
         cur = conn.cursor()

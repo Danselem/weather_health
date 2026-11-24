@@ -5,7 +5,7 @@ import pandas as pd
 
 from src import prediction_store
 from src.alerts import format_alert, send_alert
-from src.evidently_metrics import run_evidently
+from src.evidently_metrics import run_evidently, run_monitoring
 from src.performance_monitor import compute_performance
 from src.retrain_trigger import trigger_retrain
 
@@ -75,6 +75,7 @@ def test_alert_and_retrain_fallbacks(tmp_path, monkeypatch):
 
 def test_performance_metrics_from_feedback(tmp_path, monkeypatch):
     monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    monkeypatch.setenv("MONITORING_MIN_LABELS", "2")
     prediction_store.log_prediction(
         {"request_id": "a", "features": {}, "prediction": "Flu", "true_label": "Flu"}
     )
@@ -92,3 +93,11 @@ def test_failed_streak(tmp_path, monkeypatch):
     for status in ("passed", "failed", "failed"):
         prediction_store.save_monitoring_metrics({"status": status, "failed_tests": 1})
     assert prediction_store.failed_streak() == 2
+
+
+def test_minimum_rows_guard(tmp_path, monkeypatch):
+    monkeypatch.setenv("PREDICTION_DB_URL", f"sqlite:///{tmp_path}/predictions.db")
+    metrics = run_monitoring(min_rows=100, window_hours=24)
+    assert metrics["status"] == "insufficient_data"
+    assert metrics["failed_tests"] == 0
+    assert metrics["current_rows"] == 0

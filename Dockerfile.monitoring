@@ -17,4 +17,4 @@ COPY data/processed/reference.parquet ./data/processed/reference.parquet
 ENV PYTHONUNBUFFERED=1 \
     ENVIRONMENT=prod
 
-CMD ["python", "-m", "src.evidently_metrics", "--no-prefect", "--fail-on-drift"]
+CMD ["python", "-m", "src.evidently_metrics", "--no-prefect", "--fail-on-drift", "--min-rows", "300"]

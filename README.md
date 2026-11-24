@@ -102,6 +102,7 @@ channels. The compose stack remains the local Grafana dashboard.
 ```bash
 make gcp-bootstrap   # recreate Cloud SQL, secret, runtime SA, registry after teardown
 make gcp-harden      # SQL backups, deletion protection, budget alert
+make gcp-seed               # send reference-like rows for a demo window
 make gcp-monitoring-deploy  # scheduled Evidently Cloud Run Job
 make gcp-monitoring-run     # execute monitoring once
 make gcp-monitoring-status  # job/scheduler status

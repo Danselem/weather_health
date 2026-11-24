@@ -430,6 +430,9 @@ gcp-bootstrap:           ## Recreate Cloud SQL, secret, runtime SA, registry aft
 gcp-harden:              ## Enable SQL backups/deletion protection and a budget alert
 	./scripts/gcp_harden.sh
 
+gcp-seed:                ## Send reference-like rows to the live API for a monitoring window
+	./scripts/gcp_seed.sh
+
 gcp-monitoring-deploy:   ## Build/deploy the scheduled Evidently Cloud Run Job
 	./scripts/gcp_monitoring_deploy.sh
 

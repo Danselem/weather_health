@@ -57,6 +57,7 @@ make gcp-harden      # backups, deletion protection, budget alert
 make gcp-monitoring-deploy  # scheduled Evidently Cloud Run Job
 make gcp-monitoring-run     # execute once
 make gcp-monitoring-status  # execution and scheduler status
+make gcp-seed               # send reference-like rows for a demo window
 
 API protection: `/predict` and `/feedback` default to 60 requests/minute per
 instance/IP. Set the `API_KEY` env var to require `X-API-Key`; `/demo` includes
@@ -146,7 +147,10 @@ Before using it as the source of truth:
 
 The monitoring job runs the Evidently flow with `--no-prefect` (Prefect's
 engine is not needed in the job) against Cloud SQL. It writes
-`monitoring_metrics`, and the job fails on drift so Cloud Scheduler can alert.
+`monitoring_metrics`, and the job fails only when the dataset-level drift
+share reaches `DRIFT_SHARE_THRESHOLD` (default 0.5). Windows below
+`MONITORING_MIN_ROWS` (default 300) return `insufficient_data` without
+alerting.
 
 ```bash
 make gcp-monitoring-status

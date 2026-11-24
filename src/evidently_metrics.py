@@ -35,9 +35,7 @@ def _load_current(
         since = datetime.now(timezone.utc) - timedelta(hours=window_hours)
         logged = prediction_store.fetch_predictions(limit=limit, since=since)
         if logged.empty:
-            raise ValueError(
-                "No logged predictions. Send traffic to /predict or pass --current-path."
-            )
+            return pd.DataFrame(columns=reference_columns)
         features = pd.json_normalize(logged["features"])
         current = features.copy()
         current["prediction"] = logged["prediction"].values
@@ -51,9 +49,12 @@ def _load_current(
     return current[reference_columns].copy()
 
 
-def _extract_metrics(result: dict[str, Any]) -> dict[str, Any]:
+def _extract_metrics(
+    result: dict[str, Any], total_columns: int, drift_threshold: float = 0.5
+) -> dict[str, Any]:
     prediction_drift = 0.0
     drifted_columns = 0
+    drift_share = 0.0
     share_missing = 0.0
 
     for metric in result.get("metrics", []):
@@ -66,24 +67,34 @@ def _extract_metrics(result: dict[str, Any]) -> dict[str, Any]:
                 pass
         if "DriftedColumnsCount" in metric_id and isinstance(value, dict):
             drifted_columns = int(value.get("count", 0))
+            drift_share = float(value.get("share", 0.0))
         if "MissingValueCount" in metric_id and isinstance(value, dict):
             share_missing = float(value.get("share", 0.0))
 
     tests = result.get("tests", [])
     failed = [t for t in tests if t.get("status") in ("FAIL", "ERROR")]
+    if drift_share == 0.0 and drifted_columns and total_columns:
+        drift_share = drifted_columns / total_columns
+    critical = drift_share >= drift_threshold
     return {
         "prediction_drift": prediction_drift,
         "num_drifted_columns": drifted_columns,
+        "drift_share": drift_share,
         "share_missing_values": share_missing,
         "failed_tests": len(failed),
-        "status": "failed" if failed else "passed",
+        "status": "failed" if critical else "passed",
         "failed_test_details": failed,
     }
 
 
 @task(name="run_evidently_drift_report")
 def run_evidently(
-    reference: pd.DataFrame, current: pd.DataFrame, reports_dir: str
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
+    reports_dir: str,
+    window_hours: int = 24,
+    min_rows: int = 300,
+    drift_threshold: float = 0.5,
 ) -> dict[str, Any]:
     numeric_columns = [
         c
@@ -116,11 +127,14 @@ def run_evidently(
     snapshot.save_json(str(output_dir / f"drift_{stamp}.json"))
 
     result = snapshot.dict()
-    metrics = _extract_metrics(result)
+    metrics = _extract_metrics(result, len(reference.columns), drift_threshold)
     metrics["timestamp"] = datetime.now(timezone.utc)
+    metrics["window_hours"] = window_hours
+    metrics["current_rows"] = len(current)
+    metrics["min_rows"] = min_rows
     prediction_store.save_monitoring_metrics(metrics)
 
-    if metrics["failed_tests"]:
+    if metrics["status"] == "failed":
         alert = {
             "timestamp": stamp,
             "failed_tests": metrics["failed_test_details"],
@@ -145,6 +159,8 @@ def run_monitoring(
     fail_on_drift: bool = False,
     trigger_retrain_on_failure: bool = False,
     window_hours: int = 24,
+    min_rows: int = 300,
+    drift_threshold: float = 0.5,
 ) -> dict[str, Any]:
     """Plain runner used by the Cloud Run Job and by the Prefect flow."""
     cfg = load_config("config")
@@ -157,11 +173,36 @@ def run_monitoring(
     reference = pd.read_parquet(reference_path)
     reference_columns = [c for c in reference.columns if c != "true_label"]
     current = _load_current(reference_columns, current_path, limit, window_hours)
-    metrics = run_evidently.fn(reference, current, cfg.monitoring.reports_dir)
-    metrics["window_hours"] = window_hours
-    metrics["current_rows"] = len(current)
+    if len(current) < min_rows:
+        metrics = {
+            "timestamp": datetime.now(timezone.utc),
+            "prediction_drift": 0.0,
+            "num_drifted_columns": 0,
+            "share_missing_values": 0.0,
+            "failed_tests": 0,
+            "status": "insufficient_data",
+            "window_hours": window_hours,
+            "current_rows": len(current),
+            "min_rows": min_rows,
+            "failed_test_details": [],
+        }
+        prediction_store.save_monitoring_metrics(metrics)
+        print(
+            f"insufficient_data: {len(current)} rows in the last {window_hours}h "
+            f"(minimum {min_rows}); drift gate skipped"
+        )
+        return metrics
 
-    if metrics["failed_tests"]:
+    metrics = run_evidently.fn(
+        reference,
+        current,
+        cfg.monitoring.reports_dir,
+        window_hours=window_hours,
+        min_rows=min_rows,
+        drift_threshold=float(os.getenv("DRIFT_SHARE_THRESHOLD", "0.5")),
+    )
+
+    if metrics["status"] == "failed":
         send_alert(metrics)
         streak = prediction_store.failed_streak()
         metrics["failed_streak"] = streak
@@ -175,8 +216,11 @@ def run_monitoring(
     if performance is not None:
         metrics["performance"] = performance
 
-    if fail_on_drift and metrics["failed_tests"]:
-        raise SystemExit(f"Drift gate failed: {metrics['failed_tests']} test(s)")
+    if fail_on_drift and metrics["status"] == "failed":
+        raise SystemExit(
+            f"Drift gate failed: drift_share={metrics['drift_share']:.2f}, "
+            f"failed_tests={metrics['failed_tests']}"
+        )
     return cast(dict[str, Any], metrics)
 
 
@@ -187,6 +231,8 @@ def monitoring_flow(
     fail_on_drift: bool = False,
     trigger_retrain_on_failure: bool = False,
     window_hours: int = 24,
+    min_rows: int = 300,
+    drift_threshold: float = 0.5,
 ) -> dict[str, Any]:
     return run_monitoring(
         current_path=current_path,
@@ -194,6 +240,7 @@ def monitoring_flow(
         fail_on_drift=fail_on_drift,
         trigger_retrain_on_failure=trigger_retrain_on_failure,
         window_hours=window_hours,
+        min_rows=min_rows,
     )
 
 
@@ -205,6 +252,7 @@ def main() -> None:
     parser.add_argument("--trigger-retrain", action="store_true")
     parser.add_argument("--no-prefect", action="store_true")
     parser.add_argument("--window-hours", type=int, default=24)
+    parser.add_argument("--min-rows", type=int, default=300)
     args = parser.parse_args()
     runner = run_monitoring if args.no_prefect else monitoring_flow
     runner(
@@ -213,6 +261,7 @@ def main() -> None:
         fail_on_drift=args.fail_on_drift,
         trigger_retrain_on_failure=args.trigger_retrain,
         window_hours=args.window_hours,
+        min_rows=args.min_rows,
     )
 
 

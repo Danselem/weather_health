@@ -390,6 +390,8 @@ MONITORING_HTML = """<!doctype html>
     <div class="card"><div class="muted">Macro F1</div><div id="f1" class="big">…</div></div>
     <div class="card"><div class="muted">Window</div><div id="window" class="big">…</div></div>
     <div class="card"><div class="muted">Request/log coverage</div><div id="coverage" class="big">…</div></div>
+    <div class="card"><div class="muted">Rows in window</div><div id="rows" class="big">…</div></div>
+    <div class="card"><div class="muted">Minimum rows</div><div id="minrows" class="big">…</div></div>
   </div>
   <h2>Recent monitoring windows</h2>
   <table><thead><tr><th>Timestamp</th><th>Status</th><th>Failed tests</th><th>Drifted columns</th><th>Prediction drift</th></tr></thead>
@@ -413,6 +415,8 @@ MONITORING_HTML = """<!doctype html>
       const cov = data.coverage?.coverage;
       document.getElementById('coverage').textContent =
         cov == null ? '—' : (cov * 100).toFixed(1) + '%';
+      document.getElementById('rows').textContent = latest.current_rows ?? '—';
+      document.getElementById('minrows').textContent = latest.min_rows ?? '—';
       document.getElementById('history').innerHTML = (data.history || []).slice(-12).reverse().map(row =>
         `<tr><td>${row.timestamp}</td><td>${row.status}</td><td>${row.failed_tests ?? 0}</td><td>${row.num_drifted_columns ?? 0}</td><td>${pct(row.prediction_drift)}</td></tr>`
       ).join('');

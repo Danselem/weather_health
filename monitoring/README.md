@@ -111,13 +111,18 @@ The live demo also runs the same Evidently flow as a Cloud Run Job:
 
 ```bash
 make gcp-monitoring-deploy   # build image, create job + 06:00 UTC schedule
+make gcp-seed                # send 200 reference-like predictions
 make gcp-monitoring-run      # execute once
 make gcp-monitoring-status   # recent executions + scheduler state
 ```
 
 The job uses `PREDICTION_DB_URL` from Secret Manager, the Cloud SQL
 connector, and `--no-prefect` (the Prefect engine is not needed inside the
-job). It exits non-zero on drift.
+job). It exits non-zero on drift. Windows below `MONITORING_MIN_ROWS` (default 300) return
+`insufficient_data` and do not alert. Dataset drift below
+`DRIFT_SHARE_THRESHOLD` (default 0.5) is recorded as passed; only a larger
+drift share fails the gate. Performance needs at least `MONITORING_MIN_LABELS`
+(default 20) labels.
 
 ## Retention
 
