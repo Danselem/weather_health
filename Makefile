@@ -77,6 +77,12 @@ ablation:                    ## Compare weather-only, symptom-only, and full fea
 check-metrics:               ## Fail if model metrics or data contract regress
 	uv run -m src.check_metrics
 
+docs-figures:                ## Publish current report figures into tracked docs snapshots
+	./scripts/publish_docs_figures.sh
+
+check-docs:                  ## Fail on broken local Markdown image/doc links
+	uv run python scripts/check_docs.py
+
 loadtest:                    ## Manual Locust run (LOCUST_HOST, LOCUST_USERS, LOCUST_RUN_TIME)
 	uv run --with locust locust -f loadtests/locustfile.py --headless \
 		-u $${LOCUST_USERS:-10} -r 5 -t $${LOCUST_RUN_TIME:-60s} \

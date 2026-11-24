@@ -11,6 +11,19 @@
 | [`swagger.png`](../images/swagger.png) | Swagger with the prefilled prediction example |
 | [`swagger2.png`](../images/swagger2.png) | Alternate Swagger view |
 
+## Analysis figures
+
+These are tracked snapshots copied from the DVC report outputs by
+`make docs-figures`:
+
+| Image | Metric |
+|---|---|
+| [`ablation-metrics.png`](../images/reports/ablation-metrics.png) | Weather vs symptoms vs full feature set |
+| [`reliability-diagram.png`](../images/reports/reliability-diagram.png) | Calibration |
+| [`slice-metrics.png`](../images/reports/slice-metrics.png) | Age/gender slices |
+| [`shap-summary.png`](../images/reports/shap-summary.png) | SHAP attribution |
+| [`confusion-matrix.png`](../images/reports/confusion-matrix.png) | Held-out confusion matrix |
+
 ## Operations
 
 | Image | Evidence |

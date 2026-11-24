@@ -66,7 +66,7 @@ The second discovery was feature importance. Weather is not doing the work:
 | Symptoms only | 42 | 0.9870 | 0.9880 |
 | Full | 45 | 0.9799 | 0.9788 |
 
-<img src="reports/ablation_metrics.png" width="720" alt="Feature ablation: weather-only, symptoms-only, and full feature sets">
+<img src="../images/reports/ablation-metrics.png" width="720" alt="Feature ablation: weather-only, symptoms-only, and full feature sets">
 
 The full model is slightly *worse* than symptoms-only. Weather adds noise, not
 signal, in this dataset. That is the honest framing: a symptom-based classifier
@@ -135,7 +135,7 @@ Five-fold stratified CV on the training data:
 | Brier score (multiclass) | 0.0405 |
 | Expected calibration error | 0.0182 |
 
-<img src="reports/reliability_diagram.png" width="520" alt="Reliability diagram">
+<img src="../images/reports/reliability-diagram.png" width="520" alt="Reliability diagram">
 
 The model is reasonably calibrated on the synthetic test set. That does not
 guarantee calibration under a real population shift.
@@ -151,7 +151,7 @@ guarantee calibration under a real population shift.
 | Gender 0 | 497 | 0.9799 | 0.9819 |
 | Gender 1 | 500 | 0.9780 | 0.9754 |
 
-<img src="reports/slice_metrics.png" width="760" alt="Performance slices by age band and gender">
+<img src="../images/reports/slice-metrics.png" width="760" alt="Performance slices by age band and gender">
 
 Accuracy gap: **0.0248** across age bands, **0.0019** across gender. These are
 descriptive slices, not a formal fairness certification.
@@ -162,11 +162,11 @@ SHAP is now part of the pipeline. The top mean absolute attributions are
 `headache`, `chest_pain`, `nausea`, `vomiting`, `high_fever`, `Temperature (C)`,
 `dizziness`, `severe_headache`, `rashes`, and `Age`.
 
-<img src="reports/shap_summary.png" width="720" alt="Top SHAP feature attributions">
+<img src="../images/reports/shap-summary.png" width="720" alt="Top SHAP feature attributions">
 
 Confusion matrix:
 
-<img src="reports/confusion_matrix.png" width="560" alt="Confusion matrix">
+<img src="../images/reports/confusion-matrix.png" width="560" alt="Confusion matrix">
 
 ---
 
@@ -305,15 +305,15 @@ The monitoring loop is now a real loop:
 7. After repeated failures, it dispatches a retrain workflow — but never
    auto-deploys.
 
-<img src="images/demo-predict.png" width="720" alt="Live prediction demo">
-<img src="images/monitoring.png" width="760" alt="Live monitoring dashboard">
-<img src="images/monitoring-job.png" width="760" alt="Cloud Run monitoring job executions">
+<img src="../images/demo-predict.png" width="720" alt="Live prediction demo">
+<img src="../images/monitoring.png" width="760" alt="Live monitoring dashboard">
+<img src="../images/monitoring-job.png" width="760" alt="Cloud Run monitoring job executions">
 
 The retrain workflow trains, evaluates, runs the quality gate, and registers a
 new champion. A human still decides when to deploy.
 
-<img src="images/mlflow.png" width="720" alt="MLflow experiments">
-<img src="images/ci-green.png" width="720" alt="GitHub Actions CI green">
+<img src="../images/mlflow.png" width="720" alt="MLflow experiments">
+<img src="../images/ci-green.png" width="720" alt="GitHub Actions CI green">
 
 ---
 
@@ -404,15 +404,15 @@ make drift-demo
 
 Key artifacts:
 
-- `reports/evaluation_metrics.csv`
-- `reports/ablation_metrics.png`
-- `reports/calibration_metrics.csv`
-- `reports/cv_metrics.csv`
-- `reports/slice_metrics.png`
-- `reports/shap_summary.png`
+- `../reports/evaluation_metrics.csv`
+- `../images/reports/ablation-metrics.png`
+- `../reports/calibration_metrics.csv`
+- `../reports/cv_metrics.csv`
+- `../images/reports/slice-metrics.png`
+- `../images/reports/shap-summary.png`
 - `MODEL_CARD.md`
 - `DATA_CARD.md`
-- `docs/RUNBOOK.md`
+- `RUNBOOK.md`
 
 ---
 

@@ -51,7 +51,7 @@ validation split from the training data.
 |---|---:|
 | Brier score (multiclass) | 0.0405 |
 | Expected calibration error | 0.0182 |
-| Reliability diagram | `reports/reliability_diagram.png` |
+| Reliability diagram | [`../images/reports/reliability-diagram.png`](../images/reports/reliability-diagram.png) |
 
 ### Fairness / error slices
 
@@ -71,8 +71,8 @@ descriptive slice analysis, not a formal fairness certification.
 
 Top mean absolute SHAP features: `headache`, `chest_pain`, `nausea`,
 `vomiting`, `high_fever`, `Temperature (C)`, `dizziness`, `severe_headache`,
-`rashes`, `Age`. See `reports/shap_summary.png` and
-`reports/shap_feature_importance.csv`.
+`rashes`, `Age`. See [`../images/reports/shap-summary.png`](../images/reports/shap-summary.png)
+and `../reports/shap_feature_importance.csv`.
 
 ### Feature ablation (test set, same model family)
 

@@ -19,8 +19,8 @@ instances; monitoring can read the same store.
 
 > **Scientific framing:** the dataset is synthetic and symptom-driven. The model
 > is a pipeline demonstration, not a clinical tool. Weather-only features reach
-> 37.6% accuracy; symptoms-only reach 98.7%. See [MODEL_CARD.md](MODEL_CARD.md)
-> and [DATA_CARD.md](DATA_CARD.md).
+> 37.6% accuracy; symptoms-only reach 98.7%. See [docs/MODEL_CARD.md](docs/MODEL_CARD.md)
+> and [docs/DATA_CARD.md](docs/DATA_CARD.md).
 
 ---
 
@@ -198,10 +198,7 @@ weather_health/
 ├── dvc.yaml                 # reproducible pipeline stages
 ├── params.yaml              # DVC-facing paths and settings
 ├── prefect.yaml             # training + daily monitoring deployments
-├── docs/                    # architecture, runbook, ADRs, archive
-├── MODEL_CARD.md            # intended use, metrics, limitations
-├── DATA_CARD.md             # dataset provenance and quality
-├── CHANGELOG.md             # release history
+├── docs/                    # architecture, runbook, ADRs, model/data cards, blog, changelog
 └── Makefile                 # developer entry points (make help)
 ```
 
@@ -288,16 +285,16 @@ Rollback:
 
 ## Documentation
 
-- [Project write-up](blog.md)
+- [Project write-up](docs/blog.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Screenshot index](docs/SCREENSHOTS.md)
 - [Runbook](docs/RUNBOOK.md)
 - [GCP deployment](docs/GCP_DEPLOYMENT.md)
-- [Model card](MODEL_CARD.md)
-- [Data card](DATA_CARD.md)
+- [Model card](docs/MODEL_CARD.md)
+- [Data card](docs/DATA_CARD.md)
 - [Monitoring runbook](monitoring/README.md)
 - [Architecture decisions](docs/adr/)
-- [Changelog](CHANGELOG.md)
+- [Changelog](docs/CHANGELOG.md)
 - [DVC pipeline](.dvc/README.md)
 - [AWS infrastructure](infra-aws/README.md)
 

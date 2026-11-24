@@ -63,7 +63,7 @@ Columns dropped during cleaning: `shivering`, `asthma_history`,
 - at least two classes, with at least two rows per class
 - no feature combination with conflicting labels
 
-Current status: **passed** (`reports/data_validation.json`).
+Current status: **passed** (`../reports/data_validation.json`).
 
 ## Known limitations
 
