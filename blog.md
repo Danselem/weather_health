@@ -297,20 +297,23 @@ The monitoring loop is now a real loop:
    reference and runs drift tests.
 4. Metrics go to `monitoring_metrics`; performance from feedback goes to
    `performance_metrics`.
-5. Grafana shows drift, missing values, request rate, p95 latency, error rate,
-   confidence, prediction distribution, and model performance.
+5. The live `/monitoring` page shows drift, request/log coverage, rows in the
+   window, minimum rows, accuracy, and macro F1. The local compose stack keeps
+   Grafana for the same metrics.
 6. A failed report writes an alert JSON and optionally posts to
    `ALERT_WEBHOOK_URL`.
 7. After repeated failures, it dispatches a retrain workflow — but never
    auto-deploys.
 
-<img src="images/grafana.png" width="760" alt="Grafana monitoring dashboard">
+<img src="images/demo-predict.png" width="720" alt="Live prediction demo">
+<img src="images/monitoring.png" width="760" alt="Live monitoring dashboard">
+<img src="images/monitoring-job.png" width="760" alt="Cloud Run monitoring job executions">
 
 The retrain workflow trains, evaluates, runs the quality gate, and registers a
 new champion. A human still decides when to deploy.
 
 <img src="images/mlflow.png" width="720" alt="MLflow experiments">
-<img src="images/prefect.png" width="720" alt="Prefect flows">
+<img src="images/ci-green.png" width="720" alt="GitHub Actions CI green">
 
 ---
 

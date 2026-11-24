@@ -60,20 +60,26 @@ flowchart LR
     Retrain --> MLflow
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed AWS topology,
-data flow, and design decisions.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the GCP live topology,
+the optional AWS reference stack, and design decisions.
 
 ---
 
 ## Screenshots
 
-| MLflow experiments | Prefect orchestration |
+| Live prediction | Live monitoring |
 |---|---|
-| <img src="images/mlflow.png" width="480" alt="MLflow experiments"> | <img src="images/prefect.png" width="480" alt="Prefect flows"> |
+| <img src="images/demo-predict.png" width="480" alt="Live prediction demo"> | <img src="images/monitoring.png" width="480" alt="Live monitoring dashboard"> |
 
-| Grafana monitoring | Adminer / prediction store |
+| Cloud Run service | Cloud SQL |
 |---|---|
-| <img src="images/grafana.png" width="480" alt="Grafana drift dashboard"> | <img src="images/adminer.png" width="480" alt="Prediction database"> |
+| <img src="images/cloud-run.png" width="480" alt="Cloud Run service"> | <img src="images/cloudsql.png" width="480" alt="Cloud SQL backups and deletion protection"> |
+
+| CI green | MLflow / registry |
+|---|---|
+| <img src="images/ci-green.png" width="480" alt="GitHub Actions green"> | <img src="images/mlflow.png" width="480" alt="MLflow experiments"> |
+
+See [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) for the full evidence index.
 
 ---
 
@@ -165,11 +171,11 @@ make observe                  # compare logged predictions with the reference
 | Serving | FastAPI, Docker, `/health`, `/ready`, `/version`, `/predict` |
 | Observability | Prediction logging, `/feedback`, `/stats`, confidence + top-k |
 | Drift monitoring | Evidently tests against a pinned reference |
-| Dashboards | Grafana drift + API/model performance panels |
-| Alerting | Optional webhook; alert JSON fallback |
-| Retraining | Prefect schedule + guarded GitHub retrain workflow |
+| Dashboards | Live `/monitoring` page + local Grafana stack |
+| Alerting | Cloud Monitoring email uptime/drift alerts; optional webhook |
+| Retraining | Cloud Scheduler monitoring + guarded GitHub retrain workflow |
 | CI/CD | Lint, mypy, coverage, DVC repro, quality gate, Docker smoke, Checkov, Terraform validate |
-| Infrastructure | AWS ECS Fargate, private subnets, Secrets Manager, remote state, budget |
+| Infrastructure | **Live:** GCP Cloud Run/Cloud SQL/Secret Manager; **reference:** AWS ECS Terraform |
 
 ---
 
@@ -179,8 +185,8 @@ make observe                  # compare logged predictions with the reference
 weather_health/
 ├── config/                  # Hydra base, env, model, cloud configs
 ├── data/                    # DVC-managed raw/interim/processed data
-├── infra-aws/               # supported AWS stack + state bootstrap
-├── infra-gcp/               # alternative Cloud Run reference stack
+├── infra-aws/               # optional AWS reference stack (not deployed)
+├── infra-gcp/               # live GCP stack + GCS state
 ├── infra/                   # archived legacy MLflow stack
 ├── k8s/                     # local kind manifests
 ├── monitoring/              # compose stack, Grafana, runbook
@@ -284,6 +290,7 @@ Rollback:
 
 - [Project write-up](blog.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Screenshot index](docs/SCREENSHOTS.md)
 - [Runbook](docs/RUNBOOK.md)
 - [GCP deployment](docs/GCP_DEPLOYMENT.md)
 - [Model card](MODEL_CARD.md)

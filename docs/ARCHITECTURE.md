@@ -25,8 +25,10 @@ flowchart TB
 
     subgraph Monitoring
         Store --> Drift[Evidently drift vs reference]
-        Drift --> Grafana[Grafana]
-        Drift --> Alert[Webhook alert]
+        Scheduler[Cloud Scheduler] --> Job[Cloud Run monitoring job]
+        Job --> Drift
+        Drift --> Dashboard[/monitoring dashboard/]
+        Drift --> Alert[Cloud Monitoring email / webhook]
         Drift --> Trigger[Guarded retrain]
     end
 
@@ -40,27 +42,35 @@ flowchart TB
 | Hydra | Environment/model configuration; flattened into runtime config |
 | DVC | Data, model, reference, metrics, and plot versioning |
 | MLflow | Experiment tracking, signatures, model registry, `@champion` |
-| Prefect | Training and daily monitoring flows |
+| Prefect | Optional local flow orchestration; training flows also run via DVC/CI |
 | FastAPI | Prediction, feedback, health, readiness, version, stats |
 | PostgreSQL/SQLite | Prediction log, feedback labels, monitoring/performance metrics |
 | Evidently | Drift tests against a pinned reference window |
-| Grafana | Drift, API, and model-performance dashboards |
+| `/monitoring` + Grafana | Live in-app metrics; Grafana remains the local compose dashboard |
 | GitHub Actions | Quality, data/model gates, Docker smoke, deploy, retrain |
-| Terraform | AWS ECS/Fargate, ALB, private networking, ECR, S3, Secrets Manager |
+| Terraform | **Live:** GCP Cloud Run, Cloud SQL, Secret Manager, Cloud Scheduler; **reference:** AWS ECS |
 
-## AWS topology
+## GCP live topology
 
 ```mermaid
 flowchart LR
-    User[Internet] --> ALB[Application Load Balancer<br/>public subnets]
-    ALB --> ECS[ECS Fargate<br/>private subnets]
-    ECS --> NAT[NAT Gateway]
-    ECS --> SM[Secrets Manager]
-    ECS --> CW[CloudWatch Logs]
-    ECS --> S3[S3 artifacts]
-    ECR[ECR image] --> ECS
-    TF[Remote Terraform state<br/>S3 + DynamoDB] --> AWS[AWS resources]
+    User[Internet] --> CR[Cloud Run<br/>weather-health]
+    CR --> SQL[(Cloud SQL Postgres)]
+    CR --> SM[Secret Manager]
+    CR --> AR[Artifact Registry]
+    CR --> CL[Cloud Logging]
+    SCH[Cloud Scheduler<br/>06:00 UTC] --> JOB[Cloud Run Job<br/>Evidently]
+    JOB --> SQL
+    JOB --> MON[Cloud Monitoring<br/>uptime + drift alerts]
+    TF[GCS Terraform state] --> GCP[GCP resources]
 ```
+
+## AWS reference stack
+
+AWS ECS/Fargate, ALB, private subnets, Secrets Manager, ECR, S3, and
+S3/DynamoDB state are defined in `infra-aws/`. They are validated by Terraform
+and Checkov but **not deployed**. Treat them as an optional IaC reference, not
+the live system.
 
 ## Data and model contract
 

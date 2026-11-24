@@ -1,3 +1,5 @@
+> **Optional reference stack.** AWS ECS is defined here for IaC review and CI validation. It is **not deployed**. The live demo runs on GCP Cloud Run.
+
 # AWS Infrastructure
 
 Supported AWS deployment path for the weather-health API.
