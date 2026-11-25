@@ -1,5 +1,11 @@
 # Screenshot and Evidence Index
 
+## Walkthrough
+
+| Asset | Evidence |
+|---|---|
+| [`demo.mp4`](https://github.com/Danselem/weather_health/releases/download/v1.0.1/demo.mp4) | Full 6-minute live walkthrough (release asset) |
+
 ## Live product
 
 | Image | Evidence |

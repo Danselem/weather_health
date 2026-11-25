@@ -85,6 +85,8 @@ See [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) for the full evidence index.
 
 ## Live demo
 
+**Walkthrough:** [demo.mp4](https://github.com/Danselem/weather_health/releases/download/v1.0.1/demo.mp4)
+
 - **Demo UI:** https://weather-health-587752925399.us-central1.run.app/demo
 - **Monitoring:** https://weather-health-587752925399.us-central1.run.app/monitoring
 - **Swagger:** https://weather-health-587752925399.us-central1.run.app/docs

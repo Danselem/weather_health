@@ -234,3 +234,6 @@ mlflow.db
 # Local agent tooling
 .agents/
 skills-lock.json
+
+# Demo walkthrough (published as a GitHub release asset)
+docs/video-demo.mp4

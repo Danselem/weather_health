@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 — Monitoring guardrails and evidence
+
+- Minimum-row guard: windows under `MONITORING_MIN_ROWS=300` report
+  `insufficient_data` instead of drifting on thin samples.
+- Drift gate uses dataset drift share (`DRIFT_SHARE_THRESHOLD=0.5`) rather than
+  any single failing column.
+- `/monitoring` shows the evaluation window, rows in window, minimum rows, and
+  request coverage explicitly.
+- `make gcp-seed` seeds demo traffic so the monitoring loop has labelled rows.
+- Screenshot evidence index and live walkthrough video added.
+
 ## 1.0.0 — Live demo and observability
 
 - Cloud Run + Cloud SQL live demo with persistent predictions.
