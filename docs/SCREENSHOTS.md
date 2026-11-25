@@ -38,6 +38,8 @@ These are tracked snapshots copied from the DVC report outputs by
 | [`cloudsql.png`](../images/cloudsql.png) | Cloud SQL backups and deletion protection |
 | [`monitoring-job.png`](../images/monitoring-job.png) | Cloud Run Job execution history |
 | [`scheduler.png`](../images/scheduler.png) | Daily 06:00 UTC scheduler |
+| [`terraform-plan.png`](../images/terraform-plan.png) | `terraform plan`: no changes against the live stack |
+| [`drift-alert.png`](../images/drift-alert.png) | Cloud Monitoring drift alert notification |
 | [`ci-green.png`](../images/ci-green.png) | GitHub Actions all green |
 | [`mlflow.png`](../images/mlflow.png) | MLflow experiments / registry |
 | [`dagshubexp.png`](../images/dagshubexp.png) | DagsHub experiment view |

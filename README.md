@@ -79,6 +79,10 @@ the optional AWS reference stack, and design decisions.
 |---|---|
 | <img src="images/ci-green.png" width="480" alt="GitHub Actions green"> | <img src="images/mlflow.png" width="480" alt="MLflow experiments"> |
 
+| Terraform: no drift | Cloud Monitoring drift alert |
+|---|---|
+| <img src="images/terraform-plan.png" width="480" alt="terraform plan reports no changes"> | <img src="images/drift-alert.png" width="480" alt="Cloud Monitoring drift alert notification"> |
+
 See [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) for the full evidence index.
 
 ---

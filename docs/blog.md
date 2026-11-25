@@ -308,6 +308,7 @@ The monitoring loop is now a real loop:
 <img src="../images/demo-predict.png" width="720" alt="Live prediction demo">
 <img src="../images/monitoring.png" width="760" alt="Live monitoring dashboard">
 <img src="../images/monitoring-job.png" width="760" alt="Cloud Run monitoring job executions">
+<img src="../images/drift-alert.png" width="720" alt="Cloud Monitoring drift alert notification">
 
 The retrain workflow trains, evaluates, runs the quality gate, and registers a
 new champion. A human still decides when to deploy.
@@ -331,6 +332,8 @@ CI runs on every push and pull request:
 3. `dvc repro` + data contract + model quality gate.
 4. Docker build and `/ready` + `/predict` smoke test.
 5. Terraform format/validate + Checkov high-severity scan.
+
+<img src="../images/terraform-plan.png" width="760" alt="terraform plan reports no changes against the live stack">
 
 Deployment is manual and environment-gated. It fetches
 `lightgbm_best_model@champion`, builds an image tagged with the model version,
